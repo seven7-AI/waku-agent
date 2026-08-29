@@ -34,7 +34,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from waku.config import Settings, load_settings  # noqa: E402  (loads .env keys)
-from waku.ops.dashboard import price_for  # noqa: E402
+from waku.ops.pricing import price_for  # noqa: E402
 from waku.ops.scoring import check_case, load_cases  # noqa: E402  (the ONE scorer)
 
 DATASET = load_cases()

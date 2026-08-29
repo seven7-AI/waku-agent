@@ -1,10 +1,15 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/waku-mark-on-dark.svg">
+  <img src="docs/brand/waku-mark-on-light.svg" alt="Waku" width="76" align="right">
+</picture>
+
 # waku-agent
 
 **Your own AI assistant. On your laptop. In code you can read in an afternoon.**
 
 Meet **Waku** — a local-first personal assistant that shows the four pillars behind every
 serious agent: **Harness · Loop · Memory · Eval/LLM-Ops**. No frameworks hiding the good parts.
-Built for [Sean's AI Stories](https://www.youtube.com/@SeanAIStories).
+Built by [seanchen.io](https://seanchen.io).
 
 - **Local-first.** Your memory is one SQLite file. Open it. Read it. It's yours.
 - **Memory is the hero.** Semantic + episodic + procedural — with a gate that decides *whether*
@@ -15,30 +20,28 @@ Built for [Sean's AI Stories](https://www.youtube.com/@SeanAIStories).
 
 ![waku-agent architecture — the whiteboard](docs/architecture-whiteboard.png)
 
-> The system-design whiteboard from the [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
-> series. For the **code-accurate** version (every box → a file it maps to), see
-> [The whiteboard maps to the code](#the-whiteboard-maps-to-the-code) below.
->
-> **▶ Watch the 20-min code walkthrough:** [You Can Build Your Own Local AI Agent](https://www.youtube.com/watch?v=rvRyBhILrls&list=PLE9hy4A7ZTmpGq7GHf5tgGFWh2277AeDR&index=42) — every part of this repo, live: the loop, the memory pillars, the evals, the Telegram gateway, and the "Waku Waku" voice wake word.
->
-> ---
+> The system-design whiteboard from the series.
+> Every box maps to a file — see [the whiteboard maps to the code](#the-whiteboard-maps-to-the-code).
 
-## Watch & follow
+**▶ [Watch the 20-min code walkthrough](https://www.youtube.com/watch?v=rvRyBhILrls&list=PLE9hy4A7ZTmpGq7GHf5tgGFWh2277AeDR&index=42)** — the loop, the memory pillars, the evals, the Telegram gateway and the "Waku Waku" wake word, live.
 
-- **Video walkthrough:** [You Can Build Your Own Local AI Agent In 20 Min](https://www.youtube.com/watch?v=rvRyBhILrls&list=PLE9hy4A7ZTmpGq7GHf5tgGFWh2277AeDR&index=42)
-- **YouTube:** [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
-- **X:** [@ShenSeanChen](https://x.com/ShenSeanChen)
-- **LinkedIn:** [shen-sean-chen](https://linkedin.com/in/shen-sean-chen)
-- **Instagram:** [@sean_ai_stories](https://www.instagram.com/sean_ai_stories)
-- **Discord:** [Sean's Discord](https://discord.gg/tvECErKcFr) · [AutoManus Discord](https://discord.gg/5HhcNjCR)
+[YouTube](https://www.youtube.com/@SeanAIStories) · [X](https://x.com/ShenSeanChen) · [LinkedIn](https://linkedin.com/in/shen-sean-chen) · [Instagram](https://www.instagram.com/sean_ai_stories) · [TikTok](https://www.tiktok.com/@sean_ai_stories) · [Discord](https://discord.gg/ebbdvSCXqu) ·
+[哔哩哔哩](https://space.bilibili.com/479332937) · [小红书](https://www.xiaohongshu.com/user/profile/5cf02cfb0000000005014371) · [抖音](https://www.douyin.com/user/MS4wLjABAAAAWCkd62_e8q4n-S34LIL04HsYN3m03l8MFdVYZToojP8)
 
-## Support
-
-- ☕️ **Buy me a coffee:** [Cafe Latte](https://buy.stripe.com/5kA176bA895ggog4gh)
-- 🚀 **Launch Full-Stack App Template:** [launch-mvp-stripe-nextjs-supabase](https://github.com/ShenSeanChen/launch-mvp-stripe-nextjs-supabase) — NextJS + Supabase + Stripe, everything you need to ship a SaaS
-- 💻 **My AI startup:** [AutoManus.io](https://automanus.io) — an AI sales lead manager for made-to-order product sales. We embed where conversations happen (WhatsApp, email, web chat) to capture inbound, automate follow-ups, and kill CRM busywork. Pre-seed backed by Character VC.
+### ☕️ [Buy me a coffee](https://buy.stripe.com/5kA176bA895ggog4gh) — it keeps this repo (and the videos) coming
 
 ## Quickstart
+
+Just want to run it:
+
+```bash
+pip install waku-agent
+waku                                    # talk to your Waku in the terminal
+waku dashboard                          # …or the browser cockpit → localhost:7777
+```
+
+It will tell you which key to set the first time. Want to **read the code** (the
+point of this repo) or contribute — clone it instead:
 
 ```bash
 git clone https://github.com/ShenSeanChen/waku-agent && cd waku-agent
@@ -65,8 +68,9 @@ laptop. Set `TELEGRAM_BOT_TOKEN` and it starts your bot too. (`make dashboard` w
 file: `.waku/state.db`.
 
 **Use the model you already pay for.** Anthropic (default), OpenAI, Gemini, DeepSeek, MiniMax,
-Kimi, GLM, or OpenRouter (one key, hundreds of hosted models) — set `WAKU_PROVIDER=`, paste the key,
-done. One dialect in the loop; a [~60-line adapter](waku/loop/models.py) handles the rest.
+Kimi, GLM, OpenRouter (one key, hundreds of hosted models), OpenCode Zen, or OpenCode Go —
+set `WAKU_PROVIDER=`, paste the key, done. One dialect in the loop;
+a [~60-line adapter](waku/loop/models.py) handles the rest.
 
 ## Watch the harness run — the dashboard
 
@@ -88,6 +92,7 @@ Each tab is one pillar, linked to the real files:
 | **Overview** | cost, latency, the gate skip/retrieve split, the clickable architecture map |
 | **Gateway** | one conversation across every channel, each message tagged by source (dashboard / telegram / voice / cli) |
 | **Loop** | every turn with its gate decision, tool calls, tokens, and cost |
+| **Graph** | graph workflows: the live triage topology (drawn from the engine itself) + which door each turn took |
 | **Memory** | sub-tabs per pillar — semantic facts, episodes, editable skills + SOUL, consolidation |
 | **Tools** | the agent's available tools (grouped by origin), its results, and MCP connectors |
 | **Data** | a live SQLite browser: per-table tabs, schema, and a read-only SQL console over `state.db` |
@@ -111,7 +116,7 @@ Type these in the chat dock (or `make run`) and watch the dashboard light up:
 
 **The money shot** is the World Cup one. In one turn, Waku searches the web a few times, reasons
 over the results, and books every remaining match — **8 loop iterations**, live. Needs a free
-`TAVILY_API_KEY` (paste it in **Settings**). Watch the **LOOP** box pulse per cycle. That's loop
+`TAVILY_API_KEY` (paste it in **Connections**). Watch the **LOOP** box pulse per cycle. That's loop
 engineering, on tape.
 
 ## How is this different from ChatGPT / Claude Desktop?
@@ -134,6 +139,7 @@ and remix it for your own team:
 | [`k3-architecture.excalidraw`](docs/whiteboards/k3-architecture.excalidraw) | Kimi K3: the 16-of-896 MoE, KDA + AttnRes attention, why agent loops get cheap |
 | [`pi-architecture.excalidraw`](docs/whiteboards/pi-architecture.excalidraw) | pi (72K-star coding agent): 4-tool core, extensions, one EventStream |
 | [`waku-architecture.excalidraw`](docs/whiteboards/waku-architecture.excalidraw) | Waku itself — harness, loop, memory pillars, LLM Ops (editable rebuild of [the whiteboard](docs/architecture-whiteboard.png)) |
+| [`loop-vs-graph.excalidraw`](docs/whiteboards/loop-vs-graph.excalidraw) | Loop vs graph engineering — the ladder, and two timelines from a measured run of `waku brief` against `waku gather` ([the write-up](docs/loop-vs-graph.md)) |
 
 New charts land here with every video. If they help you,
 [a star](https://github.com/ShenSeanChen/waku-agent) keeps them coming — and
@@ -163,7 +169,7 @@ flowchart LR
   classDef wm fill:none,stroke:none,color:#9aa0aa,font-size:11px;
 ```
 
-> _Architecture of **waku-agent** — built on [Sean's AI Stories](https://www.youtube.com/@SeanAIStories)
+> _Architecture of **waku-agent** — built on the series
 > ([@ShenSeanChen](https://github.com/ShenSeanChen)). Code is MIT; **this diagram is licensed CC BY-NC-SA 4.0** —
 > reuse it with credit to the channel, not for commercial resale._
 
@@ -174,6 +180,7 @@ Every box is one module (full version with every file path: [docs/architecture.m
 | Gateway Interface (CLI / voice / Telegram / web) | [`waku/gateway/`](waku/gateway) |
 | Ephemeral Agent Run → Working Memory | [`waku/runtime/session.py`](waku/runtime/session.py) |
 | The Loop (LLM ↔ tools, end-loop guardrails) | [`waku/loop/agent.py`](waku/loop/agent.py) |
+| Graph workflows (structure around the loop) | [`waku/graph/`](waku/graph) |
 | Agentic Tools (schedule / note / message) | [`waku/tools/`](waku/tools) |
 | Procedural Memory (SKILL.md, "how to act") | [`waku/memory/procedural/`](waku/memory/procedural) + [`skills/`](skills) |
 | Semantic Memory (durable facts, profile) | [`waku/memory/semantic/`](waku/memory/semantic) |
@@ -194,7 +201,9 @@ raw `state.db` tables.
 ## The Loop — reason → act → repeat
 
 Yes, there's a real agent loop, and it's [~95 lines of plain Python](waku/loop/agent.py) —
-no LangGraph, no hidden control flow:
+no LangGraph, no hidden control flow (and when a task needs structure *around* the loop,
+that structure is another ~200 readable lines — see
+[Graph workflows](#graph-workflows--when-a-turn-needs-shape) below):
 
 ```
 while not done:
@@ -229,6 +238,53 @@ reasons over the results, then calls [`create_event`](waku/tools/calendar.py) on
 several iterations in a single turn. You'll see `iter 4`, `iter 5`… on the Loop tab and the
 LOOP box pulse for each cycle. `search_web` works keyless via DuckDuckGo but that endpoint
 rate-limits bots, so for a clean take set a free `TAVILY_API_KEY` (see [`.env.example`](.env.example)).
+
+## Graph workflows — when a turn needs shape
+
+The loop is one agent turn: the model picks tools until it stops, and that covers chat.
+But some work has **shape** — steps that could run *at the same time*, and explicit
+"if this, go here" routing. A **graph workflow** makes that shape first-class: nodes
+(each does one job — a function, one LLM call, or a whole loop turn) connected by edges
+(what happens next). It's an extension of the Loop pillar, not a replacement:
+[`loop/agent.py`](waku/loop/agent.py) did not change one line — a graph *arranges calls
+around it, and to it*. And it's still no-framework: the entire engine is
+[one readable file](waku/graph/engine.py), same trick as the loop.
+
+```mermaid
+flowchart LR
+  subgraph L["The loop — one path, step after step"]
+    T["think"] --> A["act"] --> O["observe"] --> T
+  end
+  subgraph G["A graph workflow — a map of steps"]
+    S(["START"]) --> C["classify<br/>small model"]
+    S --> K["check calendar<br/>local read"]
+    C --> R{"route"}
+    K --> R
+    R -. quick .-> Q["quick reply<br/>small model"] --> E(["END"])
+    R -. full .-> F["full agent<br/>THE loop, as a node"] --> E
+  end
+```
+
+**The shipped example: triage.** Flip `WAKU_GRAPH_WORKFLOWS=1` (in `.env`, or the
+dashboard's Settings) and *every* message enters the triage graph first — you never
+choose a mode, the harness decides. A small model classifies the message **while**
+today's calendar loads in parallel; *"thanks!"* gets a fast small-model reply and never
+wakes the big model; *"schedule a swim Saturday"* routes into the exact same loop as
+before, running as one node. Any failure anywhere — classifier, engine, anything —
+**fails open** to the plain loop, so the flag can only ever save time and tokens. This
+is the retrieval-gate idea generalized from one gate to a structure. (A graph is *not*
+a swarm of chatting agents: the edges decide everything, deterministically — which is
+why it can be traced and eval'd like everything else here.)
+
+**How to show it on camera:**
+1. Switch the flag on, then send *"thanks!"* — on **Overview**, the graph panel lights
+   the quick path while the LOOP boxes stay dark: proof the big model never woke.
+2. Send *"schedule a swim Saturday 9am"* — watch `route → full_agent` light up, then the
+   familiar loop animation take over. Same loop, one graph node.
+3. Open the **Graph** tab: the live topology there is drawn from the engine's own
+   `describe()` — the picture *cannot* drift from the code. The trace
+   (`.waku/traces/<today>.jsonl`) shows the run on tape:
+   `graph_start → node_start … route → graph_end`.
 
 ## The two hero moments
 
@@ -291,75 +347,38 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 make run
 
 Langfuse cloud speaks the same OTel toggle.
 
-## Recording a clean demo
+## Connect it to your life
+
+Voice, Telegram, Apple Calendar and Mail, Google Calendar, MCP servers — each
+one is opt-in, behind its own extra, and none of them change the loop. Setup
+for all of them: **[docs/integrations.md](docs/integrations.md)**.
+
+## Share memory across agents — a remote MCP server
+
+Your memory is local by default and stays that way. If you want the *same*
+memory in more than one agent, point Waku at a remote MCP server and it becomes
+another set of tools — nothing about the loop changes.
+
+`.waku/mcp.json`:
+
+```json
+{"servers": [{"name": "waku_memory",
+              "url": "https://d1o2fv4416yi84.cloudfront.net/mcp",
+              "oauth": true}]}
+```
 
 ```bash
-python scripts/demo_seed.py --yes      # resets .waku to a tidy, curated state (--yes required)
+pip install -e '.[mcp]'
+make run
 ```
 
-It backs up your current `.waku` first, then seeds a few clean facts, one episode, and one
-event — Sergey's standing **Saturday 5 PM swim**. The chat log and traces start **empty**, so
-when you type live the Loop, traces, and Gateway inbox fill up in front of the viewer. The
-memory/Data/Tools tabs already have tidy content to explain. Edit the seed lists at the top of
-the script to taste.
+A browser opens the first time, you sign in on the server's own page, and the
+token is kept in `.waku/mcp-auth/` — nothing to request, nothing to paste. That
+example is [Waku Memory](https://waku.one), which is where this pays off: write
+something in one agent and a different one can read it back. Any server that
+speaks MCP works the same way, with `auth_env` instead if it wants an API key.
 
-## Talk to it
-
-```bash
-uv pip install -e '.[voice]'
-waku voice        # hands-free: always-listening for "waku waku"
-```
-
-**Hands-free by default.** `waku voice` listens for the wake word **"waku waku"** — a tiny
-Whisper model scans the mic; when it hears the phrase, the big model takes over for your
-command and speaks the reply. Change or disable it:
-
-```bash
-WAKU_WAKE_WORD="hey waku"  waku voice     # any phrase, no training
-WAKU_WAKE_WORD=""          waku voice     # push-to-talk instead (Enter, speak, Enter)
-```
-
-The matcher is ~15 transparent lines with a deterministic eval; it accepts cross-script
-variants (`"waku waku,わくわく"`). A trained openWakeWord model is the efficient v2 upgrade.
-
-**A beautiful voice.** Out of the box it uses macOS `say` — and Waku auto-picks the nicest
-voice you have, preferring a downloaded Premium/Enhanced one (System Settings ▸ Accessibility
-▸ Spoken Content ▸ System Voice) over the robotic built-ins. For the real neural upgrade,
-install [Kokoro](https://github.com/hexgrad/kokoro) — a fully local, offline British-butler
-voice that's picked up automatically, no env var needed:
-
-```bash
-uv pip install '.[voice-neural]'          # neural Kokoro (bm_george); pulls torch (~2GB)
-```
-
-Override either engine with `WAKU_VOICE` (a `say` voice name, or a Kokoro voice like `bf_emma`).
-
-## Phone to laptop
-
-```bash
-pip install -e '.[telegram]'
-# message @BotFather, /newbot, put the token in .env, then:
-make telegram
-```
-
-Text your bot from anywhere and your laptop runs the turn — long-polling, so no
-public URL or webhook. Set `TELEGRAM_ALLOWED_USER` to lock it to just you.
-
-## Brief me on my week (Apple Calendar + Mail)
-
-```bash
-WAKU_APPLE_TOOLS=1 make brief      # macOS; grant the permission prompts once
-```
-
-Waku reads your **real** Calendar.app (including events invited by email) and
-recent Apple Mail, cross-references your memory, and writes a focus-first briefing
-with clickable `message://` links. Cron it for a morning greeting:
-
-```
-30 7 * * *  cd ~/waku-agent && make brief
-```
-
-It runs through the normal harness, so it animates on the dashboard like any turn.
+Details, including the local-only demo server: **[docs/integrations.md](docs/integrations.md)**.
 
 ## It manages its own memory
 
@@ -372,29 +391,6 @@ The agent has tools to keep itself useful — no black box:
 You can also edit any of this by hand on the dashboard's Memory tab (edit/delete
 facts, rewrite `SOUL.md`) or in Settings (switch provider/model, paste keys — BYOK,
 kept in your local `.env`, never sent to the browser).
-
-## Connect MCP servers
-
-```bash
-pip install -e '.[mcp]'
-```
-
-Create `.waku/mcp.json` and any Model Context Protocol server's tools appear to
-the agent, namespaced `<server>_<tool>` (and in the dashboard's Tools ▸ MCP tab):
-
-```json
-{"servers": [{"name": "fs", "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]}]}
-```
-
-**Node-free demo** — a tiny self-contained Python MCP server ships in the repo:
-
-```bash
-cp examples/mcp.demo.json .waku/mcp.json   # points at examples/mcp_demo_server.py
-make dashboard                               # demo_word_count / demo_reverse_text appear in Tools
-```
-
-Same pattern scales to any server, yours or a vendor's — no changes to Waku's code.
 
 ## Add skills — yours or the community's
 
@@ -450,6 +446,7 @@ something, but nothing is over-promised (they report "coming soon", and the dash
 | Whiteboard box | Tool | Status |
 |---|---|---|
 | Sub-Agents | `delegate_task` | **live** — delegates coding tasks to pi |
+| Graph workflows | [`waku/graph/`](waku/graph) | **live** behind `WAKU_GRAPH_WORKFLOWS=1` — [triage-first turns](#graph-workflows--when-a-turn-needs-shape) |
 | Terminal tool | `run_command` | skeleton — needs a real sandbox + safety surface first |
 | Browser tool | `browse_web` | skeleton — `search_web` already covers read-only lookups |
 | Cron Job | `schedule_task` | skeleton — `make brief` + a system cron line covers it today |
@@ -461,8 +458,8 @@ The point of a teaching repo is a readable core; these come alive one at a time,
 | Default (zero setup) | Upgrade | How |
 |---|---|---|
 | SQLite FTS5 keyword memory | Supabase pgvector semantic search | `WAKU_SEMANTIC_STORE=supabase` + [sql/init_supabase.sql](sql/init_supabase.sql) — the exact schema from [launch-rag](https://github.com/ShenSeanChen/launch-rag)/[launch-agentic-rag](https://github.com/ShenSeanChen/launch-agentic-rag) |
-| Mock calendar (ICS + SQLite) | Apple / Google Calendar | `WAKU_APPLE_CALENDAR=1` (macOS), or swap `waku/tools/calendar.py` — the tool schema stays |
-| Hand-built memory pillars | mem0 / Letta / Zep | production frameworks that automate what this repo teaches |
+| Mock calendar (ICS + SQLite) | Apple / Google Calendar | `WAKU_APPLE_CALENDAR=1` (macOS) or `WAKU_GOOGLE_CALENDAR=1` with `pip install -e '.[gcal]'` — the tool schema stays |
+| Hand-built memory pillars | mem0 / Zep / LangMem | `pip install -e '.[arena]'` and set `WAKU_SEMANTIC_STORE` — then race them against each other in the Arena's Memory tab. [Where to see your memories in each provider's own console](docs/memory-backends-playbook.md) |
 
 ## Related repos (the building blocks)
 
@@ -474,9 +471,19 @@ The point of a teaching repo is a readable core; these come alive one at a time,
 
 ## Community
 
-Star the repo, join the [Discord](https://discord.gg/7Ntxzm3eJ), and grab a
-[good first issue](docs/good-first-issues.md) — gateway adapters (WhatsApp, Discord),
-memory backends, and community skills are all designed to be first PRs.
+Star the repo, join the [Discord](https://discord.gg/ebbdvSCXqu), and grab a
+[good first issue](https://github.com/ShenSeanChen/waku-agent/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+— that link is the live list, so it's always current. Gateways, memory backends and
+community skills are all shaped to be first PRs; the easiest needs no Python at all
+(see [contributing a skill](CONTRIBUTING.md)).
+
+**Comment on an issue before you start** and it gets assigned to you, so two people
+never build the same thing.
+
+## Also from me
+
+- **[launch-mvp-stripe-nextjs-supabase](https://github.com/ShenSeanChen/launch-mvp-stripe-nextjs-supabase)** — NextJS + Supabase + Stripe, everything you need to ship a SaaS.
+- **[AutoManus.io](https://automanus.io)** — my AI startup: a sales lead manager for made-to-order products. It embeds where conversations already happen (WhatsApp, email, web chat) to capture inbound, automate follow-ups and kill CRM busywork. Pre-seed backed by Character VC. ([AutoManus Discord](https://discord.gg/SxXATg9rSK))
 
 MIT — see [LICENSE](LICENSE). Built by [@ShenSeanChen](https://github.com/ShenSeanChen)
 ([YouTube](https://www.youtube.com/@SeanAIStories) · [X](https://x.com/ShenSeanChen)).

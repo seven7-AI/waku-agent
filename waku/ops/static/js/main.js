@@ -3,7 +3,21 @@
 // step, no modules). Load order + rules: static/README.md.
 
 let activeView = null, activeSub = null;
+// The hash keys stay as they are — #settings is linked from graph.js, views.js,
+// the README and DEMO-CHECKLIST, and from anyone's bookmark. Only the LABEL
+// moved: after the Connections registry took keys, providers and integrations
+// out of that page, what remained was two switches that change how a turn runs,
+// which is a behaviour, not a setting.
 const TITLES = {chat:"Chat & watch", ops:"LLM Ops",
+                graph:"Graph workflows — structure around the loop",
+                // Keyed by view AND sub for the Arena, now that the sidebar
+                // names the two races separately. A single title covering both
+                // was right while they hid behind sub-tabs; with two nav rows
+                // it reads as a page that does not know which one you clicked.
+                compare:"Arena — race models and memory through the same loop",
+                "compare/models":"Model race — ten brains, one harness",
+                "compare/memory":"Memory race — one brain, five places to put facts",
+                settings:"Behaviour — how a turn runs",
                 database:"Database — everything Waku stores (state.db)"};
 function render(){
   if (!D) return;
@@ -11,12 +25,18 @@ function render(){
   const sub = subRaw || null;
   const view = VIEWS[v] ? v : "overview";
   const subChanged = sub !== activeSub || view !== activeView;
-  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on", a.dataset.v===view));
-  document.getElementById("title").textContent = TITLES[view] || view[0].toUpperCase()+view.slice(1);
-  if (view === "overview"){
+  // Two nav rows can share a view, so a row that names a sub only lights up
+  // for that sub. Without the fallback, landing on bare #compare would light
+  // NEITHER race and the sidebar would show no current page at all.
+  const effSub = sub || (view === "compare" ? "models" : null);
+  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",
+    a.dataset.v === view && (!a.dataset.sub || a.dataset.sub === effSub)));
+  document.getElementById("title").textContent =
+    TITLES[`${view}/${effSub}`] || TITLES[view] || view[0].toUpperCase()+view.slice(1);
+  if (view === "overview" || view === "graph"){
     // don't rebuild mid-animation or the glowing SVG gets wiped
-    if (activeView !== "overview" || !animating){ document.getElementById("view").innerHTML = VIEWS.overview(D); }
-  } else if ((view === "memory" || view === "settings" || view === "database" || view === "compare") && editing && !subChanged){
+    if (activeView !== view || !animating){ document.getElementById("view").innerHTML = VIEWS[view](D); }
+  } else if ((view === "memory" || view === "settings" || view === "database" || view === "compare" || view === "models" || view === "connections") && editing && !subChanged){
     // don't wipe an in-progress edit on the 5s refresh — but DO switch sub-tabs
   } else {
     editing = false;
@@ -33,6 +53,8 @@ function render(){
   document.getElementById("model").textContent = `${D.provider} · ${D.model}`;
   document.getElementById("n-gw").textContent = (D.chat_log||[]).length;
   document.getElementById("n-loop").textContent = D.stats.turns;
+  document.getElementById("n-graph").textContent =
+    (D.graph && (D.graph.stats.quick + D.graph.stats.full)) || "";
   document.getElementById("n-mem").textContent = D.facts.length + D.episodes.length;
   document.getElementById("n-tools").textContent = D.calendar.length + D.outbox.length;
   document.getElementById("n-db").textContent = (D.db && D.db.all_tables.length) || "";

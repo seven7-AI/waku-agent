@@ -1,4 +1,7 @@
 :root{
+    /* let native UI (scrollbars, form controls) follow the active scheme,
+       otherwise they stay light even in dark mode */
+    color-scheme:light dark;
     --bg:#fafaf9;--panel:#ffffff;--line:#e7e6e4;--line2:#d9d8d5;
     --ink:#21201d;--ink2:#6f6e69;--ink3:#a3a29d;
     --accent:#5e6ad2;--accent-soft:#eef0fb;
@@ -12,6 +15,13 @@
     --good:#4cc38a;--good-soft:#12291d;--bad:#e5655a;--bad-soft:#331714;
   }}
   *{box-sizing:border-box;margin:0}
+  /* thin theme-colored scrollbars (like the chat dock's), instead of the
+     chunky native ones */
+  *{scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+  *::-webkit-scrollbar{width:6px;height:6px}
+  *::-webkit-scrollbar-track{background:transparent}
+  *::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+  *::-webkit-scrollbar-thumb:hover{background:var(--ink3)}
   /* three fixed-height columns, each scrolling independently: the main
      content's scrollbar sits at its own right edge (the "middle"), never over
      the chat dock. */
@@ -24,21 +34,42 @@
   .resizer{flex-shrink:0;width:5px;height:100vh;cursor:col-resize;background:transparent}
   .resizer:hover,body.resizing .resizer{background:var(--accent-soft)}
   body.resizing{cursor:col-resize;user-select:none}
-  #nav-toggle{float:right;background:none;border:none;color:var(--ink3);cursor:pointer;font-size:12px;padding:2px 4px;line-height:1}
+  #nav-toggle{margin-left:auto;background:none;border:none;color:var(--ink3);cursor:pointer;font-size:12px;padding:2px 4px;line-height:1}
   #nav-toggle:hover{color:var(--ink)}
   #nav-reopen{display:none;position:fixed;top:12px;left:12px;z-index:25;background:var(--panel);
     border:1px solid var(--line2);border-radius:8px;color:var(--ink2);width:34px;height:30px;cursor:pointer;font-size:14px}
   body.nav-hidden #nav,body.nav-hidden #nav-resizer{display:none}
   body.nav-hidden #nav-reopen{display:block}
-  .brand{font-weight:650;font-size:15px;padding:0 10px 4px}
-  .brand small{display:block;color:var(--ink3);font-weight:400;font-size:11px;margin-top:2px}
+  .brand{font-weight:650;font-size:15px;padding:0 10px 4px;
+    display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  /* The mark is a mask, not an <img>: an <img> of waku-mark.svg would follow
+     the BROWSER's colour scheme (the favicon has no choice), but in here it
+     has to follow the PAGE. Masking paints it in var(--ink) like any text,
+     and the evenodd holes in the sunglasses stay transparent. */
+  .brand .mark{width:17px;height:17px;flex:none;align-self:center;background:var(--ink);
+    -webkit-mask:url(/static/waku-mark.svg) center/contain no-repeat;
+    mask:url(/static/waku-mark.svg) center/contain no-repeat}
+  .brand small{display:block;width:100%;order:1;color:var(--ink3);font-weight:400;font-size:11px;margin-top:2px}
+  /* Links are indented past their group header, which is what makes the header
+     read as a PARENT instead of a line of text dropped between rows. Header and
+     links used to share the same 10px left edge, so the sidebar looked like one
+     flat list with two captions randomly inserted into it. */
   nav a{display:flex;justify-content:space-between;align-items:center;color:var(--ink2);
-        text-decoration:none;padding:6px 10px;border-radius:6px;font-size:13.5px;margin-top:2px}
+        text-decoration:none;padding:6px 10px 6px 20px;border-radius:6px;font-size:13.5px;margin-top:2px}
   nav a:hover{background:var(--panel);color:var(--ink)}
   nav a.on{background:var(--accent-soft);color:var(--accent);font-weight:550}
   nav .n{font-size:11px;color:var(--ink3);font-variant-numeric:tabular-nums}
+  /* Proximity does the rest: a big gap ABOVE the header, a small one below it,
+     so each header sits with its own children rather than floating between two
+     groups. The rule separates sections without adding another colour. */
   nav .grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink3);
-           padding:16px 10px 4px}
+           font-weight:600;padding:8px 10px 5px;margin-top:14px;border-top:1px solid var(--line)}
+  /* NOT :first-of-type — that is type-based, and `.brand` is the first div in
+     the nav, so the selector silently matched nothing and the top header kept a
+     stray rule under the brand. The adjacent-sibling form says what is meant:
+     the header that comes straight after the brand opens the list, so it has
+     nothing to be separated from. */
+  nav .brand + .grp{margin-top:6px;border-top:none;padding-top:2px}
   main{flex:1;min-width:0;height:100vh;overflow-y:auto;padding:0 40px 32px}
   .pagehead{position:sticky;top:0;z-index:6;background:var(--bg);padding:28px 0 10px;
             border-bottom:1px solid var(--line);margin-bottom:18px}
@@ -77,7 +108,7 @@
   .box span{color:var(--ink2);font-size:11.5px}
   .arrow{align-self:center;color:var(--ink3);padding:0 8px;font-size:13px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;
-        padding:14px 16px;margin-bottom:10px}
+        padding:14px 16px;margin-bottom:10px;position:relative}
   .badge{display:inline-block;font-size:11px;padding:1px 8px;border-radius:99px;
          border:1px solid var(--line2);color:var(--ink2);margin-right:8px}
   .badge.retrieve{border-color:var(--accent);color:var(--accent)}
@@ -98,6 +129,33 @@
   .r .mdtable{border-collapse:collapse;margin:8px 0;font-size:12.5px;width:100%;display:block;overflow-x:auto}
   .r .mdtable th,.r .mdtable td{border:1px solid var(--line2);padding:5px 8px;text-align:left;white-space:nowrap}
   .r .mdtable th{background:var(--bg);font-weight:600;color:var(--ink)}
+  /* fenced code blocks */
+  .mdcode{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:10px 0;
+          background:rgba(0,0,0,0.035)}
+  @media(prefers-color-scheme:dark){.mdcode{background:rgba(0,0,0,0.40)}}
+  .mdcode-head{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;
+               border-bottom:1px solid var(--line);background:rgba(0,0,0,0.025)}
+  @media(prefers-color-scheme:dark){.mdcode-head{background:rgba(255,255,255,0.04)}}
+  .mdcode-lang{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;
+               letter-spacing:.08em;color:var(--ink3);font-weight:600}
+  .mdcode-copy{background:none;border:1px solid var(--line2);border-radius:6px;color:var(--ink3);
+               font-size:11px;padding:2px 8px;cursor:pointer;font-family:inherit;
+               transition:color .15s,border-color .15s,background .15s}
+  .mdcode-copy:hover{color:var(--accent);border-color:var(--accent)}
+  .mdcode-copy.copied{color:var(--good);border-color:var(--good);background:var(--good-soft)}
+  .mdcode pre{margin:0;padding:12px 14px;overflow-x:auto;font-family:var(--mono);
+              font-size:12.5px;line-height:1.65;color:var(--ink2);white-space:pre}
+  .mdcode code{font-family:var(--mono);background:none;border:none;padding:0;border-radius:0;font-size:12.5px}
+  /* horizontal rule */
+  .mdhr{border:none;border-top:1px solid var(--line2);margin:14px 0}
+  /* copy-message button — appears on card hover */
+  .msg-copy{display:none;position:absolute;top:10px;right:12px;background:var(--panel);
+             border:1px solid var(--line2);border-radius:6px;color:var(--ink3);
+             font-size:11px;padding:2px 8px;cursor:pointer;font-family:inherit;
+             transition:color .15s,border-color .15s;z-index:2}
+  .card:hover .msg-copy{display:block}
+  .msg-copy:hover{color:var(--accent);border-color:var(--accent)}
+  .msg-copy.copied{color:var(--good);border-color:var(--good)}
   .meta{color:var(--ink3);font-size:11.5px;margin-top:8px;font-variant-numeric:tabular-nums}
   .tool{border:1px solid var(--line);border-radius:7px;padding:8px 10px;margin-top:8px;background:var(--bg)}
   .tool.error{border-color:var(--bad);background:var(--bad-soft)}
@@ -144,6 +202,10 @@
      drop-shadow(var()) is unreliable on SVG, so we light the fill instead. */
   .arch .bx{transition:stroke .15s ease, fill .15s ease, stroke-width .15s ease}
   .arch .node.hot .bx{stroke:var(--accent) !important;stroke-width:2.6;fill:var(--accent-soft) !important}
+  /* A node holds .hot for as long as it is WORKING, then flashes .done. Held
+     rather than pulsed because four nodes in one wave lit together is the
+     thing worth seeing, and a pulse on completion shows the opposite. */
+  .arch .node.done .bx{stroke:var(--good) !important;stroke-width:2.2;fill:var(--good-soft) !important}
   .arch .gate{transition:stroke .15s ease, stroke-width .15s ease}
   .arch .gate.hot{stroke:var(--accent) !important;stroke-width:4}
   .arch .flow.live{stroke:var(--accent) !important;stroke-width:2.6;opacity:1;stroke-dasharray:6 5;
@@ -192,9 +254,13 @@
   .sqlbox:focus{border-color:var(--accent)}
   .qexample{font-family:var(--mono);font-size:11.5px;color:var(--accent);cursor:pointer;border-bottom:1px dashed var(--accent)}
   /* session picker in the chat surfaces */
-  .sesshead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  /* wrap, don't overflow: the dock is ~230px wide when the window is narrow, and
+     a nowrap row pushed the model chip and Send button clean off the screen.
+     min-width:0 is the other half — without it a flex child refuses to shrink
+     below its content and the row overflows even when it IS allowed to wrap. */
+  .sesshead{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;min-width:0}
   .sessbtn{background:var(--panel);border:1px solid var(--line2);border-radius:7px;color:var(--ink2);
-           padding:5px 11px;font-size:12.5px;cursor:pointer}
+           padding:5px 11px;font-size:12.5px;cursor:pointer;white-space:nowrap}
   .sessbtn:hover{border-color:var(--accent);color:var(--accent)}
   .teletoggle.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
   /* per-turn stats (gate/seconds/iters/tools) hide together when toggled off */
@@ -202,7 +268,9 @@
   .sessmenu{position:absolute;z-index:30;background:var(--panel);border:1px solid var(--line2);border-radius:10px;
             box-shadow:0 8px 30px rgba(0,0,0,.28);width:300px;max-height:340px;overflow-y:auto;padding:6px}
   /* mini model switcher: a pill in the chat header + its dropdown */
-  .modelchip{margin-left:auto;display:inline-flex;align-items:center;gap:6px;max-width:150px;
+  /* margin-left:auto parks the chip on the right — which, in a row too narrow to
+     hold it, parked it past the right edge of the window. It may shrink now. */
+  .modelchip{margin-left:auto;display:inline-flex;align-items:center;gap:6px;max-width:150px;min-width:0;
              background:var(--accent-soft);border:1px solid var(--line2);border-radius:99px;
              color:var(--ink);padding:4px 9px;font-size:12px;cursor:pointer;line-height:1.2}
   .modelchip:hover{border-color:var(--accent)}
@@ -260,7 +328,7 @@
   .bubble{align-self:flex-end;background:var(--accent);color:#fff;padding:8px 13px;
           border-radius:14px 14px 3px 14px;max-width:75%;font-size:13.5px}
   .chatbar{display:flex;gap:10px;padding:12px 0;border-top:1px solid var(--line);
-           background:var(--bg);position:sticky;bottom:0}
+           background:var(--bg);position:sticky;bottom:0;min-width:0}
   /* the chat side-dock: chat from any tab, watch the harness in main */
   #dock{width:var(--dock-w,380px);flex-shrink:0;border-left:1px solid var(--line);
         height:100vh;display:flex;flex-direction:column;background:var(--bg);padding:0 14px}
@@ -290,11 +358,16 @@
                box-shadow:0 2px 10px rgba(0,0,0,.25)}
   body.dock-closed #dock,body.dock-closed #dock-resizer{display:none}
   body.dock-closed #dock-reopen{display:block}
-  .chatbar input{flex:1;background:var(--panel);border:1px solid var(--line2);border-radius:8px;
+  /* min-width:0 is what actually makes `flex:1` shrink. flex:1 sets the basis
+     to 0, but a flex item's default min-width is `auto` — its intrinsic content
+     width — so the input refused to go below that and pushed Send off the edge
+     of the dock. The buttons then get flex-shrink:0 so the input absorbs the
+     squeeze instead of the controls turning into slivers. */
+  .chatbar input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line2);border-radius:8px;
                  padding:10px 14px;color:var(--ink);font-size:14px;outline:none}
   .chatbar input:focus{border-color:var(--accent)}
   .chatbar button{background:var(--accent);color:#fff;border:none;border-radius:8px;
-                  padding:0 18px;font-weight:600;font-size:13.5px;cursor:pointer}
+                  padding:0 18px;font-weight:600;font-size:13.5px;cursor:pointer;flex-shrink:0}
   .chatbar button:disabled{opacity:.5;cursor:default}
   .stages{display:flex;gap:6px;margin:2px 0 4px}
   .stage{font-size:11px;padding:2px 9px;border-radius:99px;border:1px solid var(--line2);color:var(--ink3)}
@@ -314,6 +387,18 @@
        padding:10px 12px;color:var(--ink);font-size:13.5px;font-family:inherit;outline:none;resize:vertical}
   .cmp-input:focus{border-color:var(--accent)}
   .cmp-picks{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+  /* The arena's control row: blurb, three toggles, and the Race button. It was
+     a nowrap flex row, so on a narrow window the blurb squeezed to one word per
+     line AND the Race button still ended up outside the card. Wrapping fixes
+     both: the blurb takes a line of its own below ~260px of room, and the
+     controls flow onto the next line instead of escaping. */
+  .cmp-controls{display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+  .cmp-controls .cmp-blurb{flex:1 1 260px;min-width:0}
+  /* Wide tables scroll inside their own box rather than out of it. The
+     scoreboard is 885px of columns in a 655px card; without this the last
+     columns (total tok, rate, total cost) render past the card's right edge and
+     over the page. Any table that can outgrow its card belongs in one of these. */
+  .tablescroll{overflow-x:auto;max-width:100%}
   .cmp-pick{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink2);
        border:1px solid var(--line2);border-radius:99px;padding:4px 10px;cursor:pointer}
   .cmp-pick.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
@@ -324,10 +409,20 @@
   .cmp-col{background:var(--panel);border:1px solid var(--line);border-radius:12px;
        padding:12px 14px;display:flex;flex-direction:column;gap:8px}
   .cmp-col.err{border-color:var(--bad)}
+  /* One wave's nodes all start together, so every bar shares a left edge and
+     ends where that node finished. Four bars of different lengths from the same
+     origin IS the wave — the topology chart above can only promise it. */
+  .wavebar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+  .wavebar i{display:block;height:100%;background:var(--accent);border-radius:3px}
   .cmp-h{display:flex;align-items:center;gap:6px;font-size:13px}
   .cmp-stats{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
   .chip{font-size:11px;color:var(--ink2);border:1px solid var(--line2);border-radius:99px;padding:1px 8px}
   .chip.money{color:var(--good);border-color:var(--good)}
+  /* A graph node's chip while it WORKS, and after. Several .live at once is
+     the fan-out made visible in the chat card — the pending state used to say
+     only "thinking…" for the whole thirteen seconds of a gather. */
+  .chip.live{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+  .chip.err{color:var(--bad);border-color:var(--bad)}
   .chip.sorted{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);font-weight:600}
   .cmp-reply{margin-top:2px;font-size:13px;max-height:340px;overflow-y:auto}
   .cmp-race{padding:5px 14px;font-size:12.5px}
@@ -376,3 +471,200 @@
        border:1px solid var(--line2);border-radius:99px;padding:3px 12px}
   .cmp-sortbtn:hover{border-color:var(--accent);color:var(--accent)}
   .cmp-sortbtn.on{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);font-weight:600}
+
+/* Sub-agent receipt (Arena cards): pi working inside a card. Live = small
+   terminal window; finished = one quiet row, expandable. */
+.subterm{ margin:6px 0; border:1px solid var(--line); border-radius:8px;
+  background:var(--bg); font-size:11.5px; overflow:hidden; }
+.subterm.live{ border-color:var(--accent); background:var(--accent-soft); }
+.subterm-h{ display:flex; align-items:center; gap:7px; padding:4px 8px;
+  color:var(--ink3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  cursor:default; list-style:none; }
+details.subterm > summary.subterm-h{ cursor:pointer; }
+details.subterm > summary.subterm-h::-webkit-details-marker{ display:none; }
+.subterm-t{ overflow:hidden; text-overflow:ellipsis; }
+.subterm pre{ margin:0; padding:5px 8px; border-top:1px solid var(--line);
+  font-size:11px; line-height:1.5; white-space:pre-wrap; word-break:break-word;
+  max-height:96px; overflow-y:auto; }
+
+/* Arena card diet: clamp long replies (fade + toggle), one-line model names. */
+.cmp-reply.clamped{ max-height:150px; overflow:hidden; position:relative; }
+.cmp-reply.clamped::after{ content:""; position:absolute; left:0; right:0; bottom:0;
+  height:44px; background:linear-gradient(transparent, var(--panel)); }
+.cmp-more{ font-size:11px; display:inline-block; margin-top:2px; }
+.cmp-h code{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:15ch; }
+
+
+/* Models page: provider card grid + edit modal. */
+.provgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
+.provcard{ background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:16px 14px 12px; display:flex; flex-direction:column; align-items:flex-start;
+  gap:6px; position:relative; }
+.provcard .prov-current{ position:absolute; top:10px; right:10px; }
+.provlogo{ width:44px; height:44px; border-radius:10px; }
+.provname{ font-weight:700; font-size:14px; }
+.provstatus{ display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink2); }
+.provdot{ width:9px; height:9px; border-radius:99px; flex-shrink:0; }
+.provactions{ display:flex; gap:8px; margin-top:4px; }
+.provactions .save{ padding:5px 12px; font-size:12px; }
+.provmodal-back{ position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:60;
+  display:flex; align-items:center; justify-content:center; }
+.provmodal{ background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:20px; width:min(520px, 92vw); max-height:90vh; overflow-y:auto; }
+.provmodal-models{ width:min(640px, 92vw); min-height:min(430px, 90vh); padding:24px; }
+
+.model-picker{ position:relative; }
+.model-picker-input{ display:flex; align-items:stretch; }
+.model-picker-input input{ flex:1; border-radius:8px 0 0 8px; border-right:none; }
+.model-picker-toggle{ width:34px; border:1px solid var(--line2); border-radius:0 8px 8px 0; background:var(--bg); color:var(--ink2); cursor:pointer; }
+.model-picker-toggle:hover{ background:var(--panel); color:var(--ink); }
+.model-picker-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+.model-picker-list{ display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--panel); border:1px solid var(--line2); border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.15); z-index:10; max-height:240px; overflow:auto; }
+.model-picker-list.open{ display:block; }
+.model-picker-search{ position:sticky; top:0; padding:8px 10px; border:none; border-bottom:1px solid var(--line2); background:var(--panel); width:100%; outline:none; }
+.model-picker-search:focus{ border-bottom-color:var(--accent); }
+.model-picker-items{ padding:4px 0; }
+.model-picker-item{ padding:7px 12px; cursor:pointer; font-size:12.5px; }
+.model-picker-item:hover,.model-picker-item.active{ background:var(--accent-soft); color:var(--accent); }
+.model-picker-meta{ padding:6px 12px; font-size:11px; color:var(--ink3); border-top:1px solid var(--line2); }
+
+/* Connections page: the same compact card language as Models, with config
+   details moved into a focused modal instead of stretching every card. */
+.connsection:first-child h2{margin-top:0}
+.connsection + .connsection h2{margin-top:30px}
+.conngrid{align-items:stretch}
+.conncard{min-height:190px;transition:border-color .12s ease,box-shadow .12s ease}
+.conncard:hover{border-color:var(--line2);box-shadow:0 5px 18px rgba(33,32,29,.05)}
+.connlogo{object-fit:contain}
+.connstatus{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink2)}
+.conndot{width:9px;height:9px;border-radius:99px;background:var(--ink3);flex-shrink:0}
+.connstatus.connected{color:var(--good)}
+.connstatus.connected .conndot{background:var(--good)}
+.connstatus.error{color:var(--bad)}
+.connstatus.error .conndot{background:var(--bad)}
+.connstatus.needs-setup{color:#a87312}
+.connstatus.needs-setup .conndot{background:#c8951f}
+/* Configured but unproven: deliberately calm. Amber here would read as a
+   warning about something that is merely untested, which is the whole bug
+   this state exists to fix. Accent, not alarm. */
+.connstatus.configured{color:var(--accent)}
+.connstatus.configured .conndot{background:var(--accent)}
+.connstatus.not-configured .conndot{background:var(--ink3)}
+/* The one-line reason under the pill: what to actually do about it. */
+.connwhy{font-size:11px;color:var(--ink3);margin-top:2px;font-family:var(--mono)}
+.conndesc{color:var(--ink2);font-size:12px;line-height:1.5}
+.conncard .conndesc{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  overflow:hidden;min-height:36px}
+.connactions{margin-top:auto}
+.connmodal-back{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);
+  display:flex;align-items:center;justify-content:center;padding:24px}
+.connmodal{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 24px 70px rgba(0,0,0,.25);width:min(560px,100%);max-height:88vh;
+  overflow-y:auto;padding:20px;outline:none}
+.connmodal-head{display:flex;align-items:center;gap:12px}
+.connmodal-title{min-width:0;flex:1}
+.connmodal-title h3{font-size:16px;line-height:1.3;margin-bottom:3px}
+.connmodal-close{align-self:flex-start;background:transparent;border:1px solid var(--line2);
+  border-radius:7px;color:var(--ink2);cursor:pointer;font-size:12px;padding:5px 9px}
+.connmodal-close:hover,.connmodal-close:focus-visible{border-color:var(--accent);color:var(--accent)}
+.connmodal-desc{margin:14px 0 0;font-size:13px}
+.connmodal-meta{display:flex;flex-wrap:wrap;gap:4px 12px;min-height:18px;margin-top:6px;
+  color:var(--ink3);font-size:11.5px;font-variant-numeric:tabular-nums}
+.connsetup{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin-top:14px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);
+  border-radius:8px;font-size:12px}
+.connsetup code{overflow-wrap:anywhere}
+.connsetup a{color:var(--accent);font-weight:550;text-decoration:none}
+.connsetup a:hover{text-decoration:underline}
+.connection-fields{margin-top:18px}
+.conn-field{margin-bottom:14px}
+.conn-field .fld{margin-bottom:0}
+.conn-field-help{margin-top:5px;color:var(--ink3);font-size:11.5px;line-height:1.45}
+.conn-check{display:flex;align-items:center;gap:9px;color:var(--ink2);font-size:12.5px;
+  cursor:pointer;padding:8px 0}
+.conn-check input,.conn-clear input{accent-color:var(--accent)}
+.conn-secret-state{display:inline-flex;border-radius:99px;background:var(--good-soft);
+  color:var(--good);font-size:10.5px;font-weight:600;padding:1px 7px;margin-left:4px}
+.conn-clear{display:flex;align-items:center;gap:6px;width:max-content;margin-top:6px;
+  color:var(--ink3);cursor:pointer;font-size:11.5px}
+.connmodal-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.connmodal-actions .save{padding:7px 14px;font-size:12.5px}
+.connmodal-message{flex:1;min-width:160px;color:var(--ink3);font-size:11.5px}
+.conn-force{margin-left:6px}
+.connmodal :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-color-scheme:dark){
+  .conncard:hover{box-shadow:0 5px 18px rgba(0,0,0,.25)}
+  .connstatus.needs-setup{color:#d9a441}
+}
+@media (max-width:720px){
+  .conngrid{grid-template-columns:1fr}
+  .connmodal-back{padding:10px}
+  .connmodal{max-height:94vh;padding:16px}
+  .connmodal-actions{align-items:stretch}
+  .connmodal-actions .save{flex:1}
+  .connmodal-message{flex-basis:100%}
+}
+
+/* --- Memory arena: the fixture, readable before any of it has been run --- */
+.ma-seed{margin:0;padding-left:20px;font-size:13px;color:var(--ink2);line-height:1.7}
+.ma-seed li{margin:1px 0}
+.ma-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:12px}
+.ma-o{font-family:var(--mono);font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid var(--line2)}
+.ma-pass{color:var(--good);border-color:var(--good)}
+.ma-stale{color:#a87312;border-color:#c8951f}
+/* invented is the headline failure — a confident answer to something it was
+   never told. It gets the alarm colour; miss, an honest gap, deliberately does not. */
+.ma-invented{color:var(--bad);border-color:var(--bad)}
+.ma-miss{color:var(--ink3)}
+.ma-expect{color:var(--good);font-family:var(--mono);font-size:12px}
+.ma-forbid{color:var(--bad);font-family:var(--mono);font-size:12px}
+.ma-source{margin-top:10px;padding:8px 10px;border-radius:6px;background:var(--accent-soft);
+           color:var(--ink2);font-size:12px;line-height:1.6}
+.ma-race{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px}
+/* Questions and Model are ONE setup decision, so they belong on one line. They
+   were wrapping to a line each: a bare <select> sizes itself to its longest
+   option, and these carry text like "Example — a working week — 5 facts, 4
+   questions", which is wider than half the card. flex-basis lets them share the
+   row and min-width:0 is what actually permits the shrink — a flex item refuses
+   to go below its content width without it, which is the whole reason the
+   wrapping looked like a gap problem rather than a width one. */
+/* Heading, its button and its one-line note on a single baseline. Vertical
+   space on this page belongs to the store cards, not to the furniture that
+   introduces them. */
+.ma-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ma-head .save{font-size:12px;padding:5px 12px}
+.ma-head .meta{font-weight:400}
+.ma-pickers .fld{margin-bottom:0;flex:1 1 260px;min-width:0}
+.ma-pickers .fld select{width:100%}
+.ma-pickers .meta{flex:1 1 100%}
+.ma-ans{font-size:11px;color:var(--ink3);margin-top:4px;max-width:280px;line-height:1.45}
+/* Equal-height cards. `align-items:stretch` is the grid default, so every card
+   already spans its row — the cards were ragged because each one sized to its
+   own content. Fixing the ROW height and scrolling only the facts keeps the
+   header and provenance line readable while you compare stores side by side:
+   the thing you scan across (name, count, date span) never moves. */
+.ma-stores{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:10px;align-items:stretch}
+.ma-store{margin-bottom:0;display:flex;flex-direction:column;max-height:340px;min-height:0}
+.ma-store-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;
+  flex:0 0 auto}
+/* The scroll region. `min-height:0` is load-bearing: a flex child defaults to
+   min-height:auto (its intrinsic content height), so without it the list
+   refuses to shrink and pushes the card taller instead of scrolling. */
+.ma-facts{margin:0;padding-left:16px;font-size:12px;color:var(--ink2);line-height:1.65;
+  flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+/* An error or an "unreadable, and here's why" note fills the same space. */
+.ma-store > .ma-ans{flex:1 1 auto;min-height:0;overflow-y:auto}
+/* "showing 8 of 53 - see all" stays pinned under the scroll region. */
+.ma-store > .meta{flex:0 0 auto}
+.ma-facts li{margin:2px 0}
+.ma-prov{font-size:10.5px;color:var(--ink3);margin:-2px 0 8px;font-family:var(--mono);line-height:1.5;
+  flex:0 0 auto}
+.ma-warn{margin-top:10px;padding:8px 10px;border-radius:6px;background:var(--accent-soft);
+         color:var(--ink2);font-size:12px;line-height:1.6}
+.ma-facts-meta{font-size:10.5px;color:var(--ink3);font-family:var(--mono);margin:4px 0 2px}
+.ma-test{display:inline-block;font-family:var(--mono);font-size:10px;text-transform:uppercase;
+         letter-spacing:.05em;color:var(--accent);background:var(--accent-soft);
+         padding:2px 7px;border-radius:99px}
+.ma-q{font-size:12.5px;color:var(--ink);margin-top:5px;line-height:1.45;max-width:210px}

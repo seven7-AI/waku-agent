@@ -11,7 +11,6 @@ away. What persists lives in waku/memory. Working memory =
 
 from __future__ import annotations
 
-
 from waku.config import Settings
 
 DEFAULT_SOUL = """\
@@ -47,8 +46,8 @@ def load_soul(settings: Settings) -> str:
     changes who your Waku is — that's procedural memory at its simplest."""
     soul_path = settings.home / "SOUL.md"
     if not soul_path.exists():
-        soul_path.write_text(DEFAULT_SOUL)
-    return soul_path.read_text()
+        soul_path.write_text(DEFAULT_SOUL, encoding="utf-8")
+    return soul_path.read_text(encoding="utf-8")
 
 
 class Session:
@@ -71,9 +70,9 @@ class Session:
                  f"\nRight now it is {now:%A, %Y-%m-%d %H:%M} ({now:%Z}, UTC{now:%z}).",
                  # the agent should know its own brain — "what model are you?"
                  # is the first question every curious user asks
-                 f"Your model: you are running on '{self.settings.model}' via the "
+                 (f"Your model: you are running on '{self.settings.model}' via the "
                  f"'{self.settings.provider}' provider, inside Waku, a local-first "
-                 f"open-source agent harness (github.com/ShenSeanChen/waku-agent)."]
+                 f"open-source agent harness (github.com/ShenSeanChen/waku-agent).")]
 
         if self.memory is not None:
             # Hero moment #1: a cheap judge decides IF we retrieve at all —

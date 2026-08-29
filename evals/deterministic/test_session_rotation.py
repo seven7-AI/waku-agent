@@ -8,7 +8,7 @@ is older than WAKU_SESSION_IDLE_MINUTES, the next chat starts a new thread
 from __future__ import annotations
 
 from evals.helpers import ScriptedClient, make_waku
-from waku.ops.dashboard import _maybe_rotate_session
+from waku.ops.browser_agent import maybe_rotate_session
 
 
 def _seed(app, session_id, age_minutes):
@@ -25,7 +25,7 @@ def test_idle_session_rotates(tmp_path, monkeypatch):
     app = make_waku(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
     _seed(app, before, age_minutes=120)          # 2h idle > 60m threshold
-    _maybe_rotate_session(app)
+    maybe_rotate_session(app)
     assert app.session.session_id != before
     assert app.session.session_id.startswith("dashboard-")
     assert app.session.history == []             # fresh working memory too
@@ -36,7 +36,7 @@ def test_active_session_stays(tmp_path, monkeypatch):
     app = make_waku(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
     _seed(app, before, age_minutes=5)            # active conversation
-    _maybe_rotate_session(app)
+    maybe_rotate_session(app)
     assert app.session.session_id == before
 
 
@@ -44,7 +44,7 @@ def test_empty_session_stays(tmp_path, monkeypatch):
     monkeypatch.setenv("WAKU_SESSION_IDLE_MINUTES", "60")
     app = make_waku(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
-    _maybe_rotate_session(app)                   # no messages at all -> no-op
+    maybe_rotate_session(app)                   # no messages at all -> no-op
     assert app.session.session_id == before
 
 
@@ -53,7 +53,7 @@ def test_rotation_can_be_disabled(tmp_path, monkeypatch):
     app = make_waku(tmp_path / "home", client=ScriptedClient([]))
     before = app.session.session_id
     _seed(app, before, age_minutes=10000)
-    _maybe_rotate_session(app)
+    maybe_rotate_session(app)
     assert app.session.session_id == before
 
 
@@ -61,14 +61,14 @@ def test_provider_switch_resets_stale_model_overrides(tmp_path, monkeypatch):
     """Live bug: kimi -> gemini kept gate model kimi-k3; every turn then 404'd
     against Gemini. A provider change must reset any model field the user
     didn't newly type."""
-    from waku.ops import dashboard
+    from waku.ops import settings_api
 
     captured = {}
     monkeypatch.setenv("WAKU_PROVIDER", "kimi")
     monkeypatch.setenv("WAKU_MODEL", "kimi-k3")
     monkeypatch.setenv("WAKU_SMALL_MODEL", "kimi-k3")
     monkeypatch.setenv("GEMINI_API_KEY", "fake-key-for-tests")
-    monkeypatch.setattr(dashboard, "find_dotenv", lambda **k: "", raising=False)
+    monkeypatch.setattr(settings_api, "find_dotenv", lambda **k: "", raising=False)
 
     # intercept at the env-write layer; abort before the agent rebuild
     def fake_set_key(path, k, v):
@@ -78,8 +78,8 @@ def test_provider_switch_resets_stale_model_overrides(tmp_path, monkeypatch):
     import dotenv
     monkeypatch.setattr(dotenv, "set_key", fake_set_key)
     try:
-        dashboard.apply_settings({"provider": "gemini", "model": "kimi-k3",
-                                  "small_model": "kimi-k3", "keys": {}})
+        settings_api.apply_settings({"provider": "gemini", "model": "kimi-k3",
+                                     "small_model": "kimi-k3", "keys": {}})
     except RuntimeError:
         pass
     assert captured.get("WAKU_MODEL", "unset") in ("", "unset") or \

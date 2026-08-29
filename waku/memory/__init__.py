@@ -22,24 +22,61 @@ from waku.memory.episodic.store import SqliteEpisodeStore
 from waku.memory.procedural.loader import SkillLoader
 from waku.memory.semantic.store import SqliteFactStore
 
-REPO_SKILLS = Path(__file__).resolve().parents[2] / "skills"
+
+def bundled_skill_dirs() -> list[Path]:
+    """Where the skills that SHIP with Waku live — and why there are two answers.
+
+    Contributors add skills to `skills/` at the repo root: that is what
+    CONTRIBUTING.md documents, what CI validates, and what a checkout has. But
+    the wheel only packages the `waku/` directory, so a `pip install waku-agent`
+    would have found nothing there and silently started with zero skills —
+    procedural memory, one of the four pillars, quietly missing. (It did, until
+    2026-07-31.) pyproject force-includes the same folder into the wheel at
+    `waku/skills`, so an installed Waku finds it next to the code.
+
+    Exactly one of these exists at a time — the package copy only in a built
+    wheel, the repo copy only in a checkout — so returning both is not a
+    double-load, it is "wherever you installed from, the skills came too".
+    """
+    here = Path(__file__).resolve()
+    return [p for p in (here.parents[1] / "skills", here.parents[2] / "skills") if p.is_dir()]
 
 
 class Memory:
-    def __init__(self, conn: sqlite3.Connection, settings: Settings, client: anthropic.Anthropic):
+    def __init__(self, conn: sqlite3.Connection, settings: Settings, client: anthropic.Anthropic,
+                 episode_store=None):
+        # episode_store: inject an already-built store (the dashboard caches ONE
+        # NotionEpisodeStore process-wide — its constructor hits the network,
+        # so building one per Memory would re-query Notion on every poll).
         self.conn = conn
         self.settings = settings
         self.client = client
         self.facts = self._make_fact_store(conn, settings)
-        self.episodes = self._make_episode_store(conn, settings)
-        self.skills = SkillLoader([REPO_SKILLS, settings.home / "skills"])
+        self.episodes = episode_store if episode_store is not None else self._make_episode_store(conn, settings)
+        self.skills = SkillLoader([*bundled_skill_dirs(), settings.home / "skills"])
 
     @staticmethod
     def _make_fact_store(conn, settings):
+        # Every branch here returns something that satisfies FactStore
+        # (semantic/base.py) and is held to it by the conformance suite — which
+        # is the whole reason a hosted service can stand in for local SQLite
+        # without anything upstream noticing.
         if settings.semantic_store == "supabase":
             from waku.memory.semantic.supabase_store import SupabaseFactStore
 
             return SupabaseFactStore(settings)
+        if settings.semantic_store == "mem0":
+            from waku.memory.semantic.mem0_store import Mem0FactStore
+
+            return Mem0FactStore(settings)
+        if settings.semantic_store == "zep":
+            from waku.memory.semantic.zep_store import ZepFactStore
+
+            return ZepFactStore(settings)
+        if settings.semantic_store == "langmem":
+            from waku.memory.semantic.langmem_store import LangMemFactStore
+
+            return LangMemFactStore(settings)
         return SqliteFactStore(conn)
 
     @staticmethod
@@ -140,9 +177,9 @@ class Memory:
         lines = [
             "# Waku memory",
             "",
-            "_A human-readable mirror of what Waku remembers. The source of truth is "
+            ("_A human-readable mirror of what Waku remembers. The source of truth is "
             "`state.db` (the `facts` and `episodes` tables, keyword-searchable via FTS5); "
-            "this file is regenerated after every turn._",
+            "this file is regenerated after every turn._"),
             "",
             f"## Facts — semantic memory ({len(facts)})",
             "",
@@ -150,7 +187,7 @@ class Memory:
         lines += [f"- **{f['subject']}** — {f['content']}" for f in facts] or ["_none yet_"]
         lines += ["", f"## Episodes — episodic memory ({len(eps)})", ""]
         lines += [f"- **{e['happened_at']}** — {e['summary']}" for e in eps] or ["_none yet_"]
-        (self.settings.home / "MEMORY.md").write_text("\n".join(lines) + "\n")
+        (self.settings.home / "MEMORY.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def maybe_consolidate(self, notify=None) -> None:
         new_facts = consolidation.consolidate_if_due(

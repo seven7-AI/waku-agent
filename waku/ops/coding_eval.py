@@ -27,6 +27,7 @@ import time
 from pathlib import Path
 
 from waku.loop.models import PROVIDERS
+from waku.tools._env import delegate_env
 
 _CODING = Path(__file__).resolve().parents[2] / "evals" / "coding.jsonl"
 
@@ -35,6 +36,7 @@ PI_PROVIDER = {
     "anthropic": "anthropic", "openai": "openai", "gemini": "google",
     "kimi": "moonshotai", "xai": "xai", "glm": "zai",
     "deepseek": "deepseek", "minimax": "minimax", "openrouter": "openrouter",
+    "opencode_zen": "opencode_zen", "opencode_go": "opencode_go",
 }
 
 
@@ -42,7 +44,8 @@ def load_coding_cases() -> list[dict]:
     """Every coding case in file order; empty list if the file is missing."""
     if not _CODING.exists():
         return []
-    return [json.loads(line) for line in _CODING.read_text().splitlines() if line.strip()]
+    lines = _CODING.read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines if line.strip()]
 
 
 def pi_available() -> bool:
@@ -81,7 +84,7 @@ def run_coding_stream(provider: str, model: str, task: str, files: dict | None,
 
     workdir = Path(tempfile.mkdtemp(prefix=f"code-{provider}-"))
     for name, content in (files or {}).items():
-        (workdir / name).write_text(content)
+        (workdir / name).write_text(content, encoding="utf-8")
     on_line(f"$ pi --provider {pi_prov} --model {model} -p …")
 
     t0 = time.perf_counter()
@@ -91,7 +94,7 @@ def run_coding_stream(provider: str, model: str, task: str, files: dict | None,
              "-p", task, "-a", "--no-session"],
             cwd=workdir, stdin=subprocess.DEVNULL,   # no TTY under the server: pi
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,  # must not block on stdin
-            text=True, bufsize=1, env=os.environ.copy())
+            text=True, bufsize=1, env=delegate_env())
     except OSError as exc:
         return (False, f"couldn't launch pi: {exc}", round(time.perf_counter() - t0, 1))
 
@@ -110,7 +113,7 @@ def run_coding_stream(provider: str, model: str, task: str, files: dict | None,
         return (None, "ran (no test)", secs)
     try:
         v = subprocess.run(verify, shell=True, cwd=workdir, capture_output=True,
-                           text=True, timeout=120, check=False)
+                           text=True, timeout=120, check=False, env=delegate_env())
     except subprocess.TimeoutExpired:
         on_line("[verify timed out]")
         return (False, "verify timed out", secs)
@@ -149,7 +152,7 @@ def run_coding_case(provider: str, model: str, case: dict,
 
     workdir = Path(tempfile.mkdtemp(prefix=f"code-{provider}-"))
     for name, content in (case.get("files") or {}).items():
-        (workdir / name).write_text(content)
+        (workdir / name).write_text(content, encoding="utf-8")
 
     t0 = time.perf_counter()
     try:
@@ -158,7 +161,7 @@ def run_coding_case(provider: str, model: str, case: dict,
             [pi_bin, "--provider", pi_prov, "--model", model, "--api-key", key,
              "-p", case["input"], "-a", "--no-session"],
             cwd=workdir, stdin=subprocess.DEVNULL, capture_output=True,
-            text=True, timeout=timeout, check=False)
+            text=True, timeout=timeout, check=False, env=delegate_env())
     except subprocess.TimeoutExpired:
         return (False, f"pi timed out after {timeout}s", round(time.perf_counter() - t0, 1))
     except OSError as exc:
@@ -171,7 +174,7 @@ def run_coding_case(provider: str, model: str, case: dict,
         return (True, "no verify (ran clean)", round(time.perf_counter() - t0, 1))
     try:
         v = subprocess.run(verify, shell=True, cwd=workdir, capture_output=True,
-                           text=True, timeout=120, check=False)
+                           text=True, timeout=120, check=False, env=delegate_env())
     except subprocess.TimeoutExpired:
         return (False, "verify timed out", round(time.perf_counter() - t0, 1))
     secs = round(time.perf_counter() - t0, 1)

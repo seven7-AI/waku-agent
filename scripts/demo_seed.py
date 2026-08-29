@@ -32,11 +32,14 @@ from waku.tools.calendar import make_tool
 
 # Curated seed — clean, no duplicates. Edit these to taste before recording.
 FACTS = [
-    ("user", "The user runs the YouTube channel 'Sean's AI Stories' and films implementation "
-             "walkthroughs. His X account is @ShenSeanChen. All of his Chinese social media "
-             "accounts are called 肖恩君Sean."),
-    ("raj", "Raj is a close friend who plays really great tennis and always teaches me great "
-            "British slangs!"),
+    # The parentheses around each multi-line string are load-bearing, not style:
+    # inside a collection, a MISSING COMMA silently glues two entries into one
+    # instead of erroring. ruff's ISC004 flags exactly that shape.
+    ("user", ("The user runs the YouTube channel 'Sean's AI Stories' and films implementation "
+              "walkthroughs. His X account is @ShenSeanChen. All of his Chinese social media "
+              "accounts are called 肖恩君Sean.")),
+    ("raj", ("Raj is a close friend who plays really great tennis and always teaches me great "
+             "British slangs!")),
     ("sergey", "Sergey is the close friend who loves swimming and often cooks delicious food!"),
 ]
 EPISODE = ("2026-07-11", "Confirmed the standing Saturday 5 PM swim with Sergey.")

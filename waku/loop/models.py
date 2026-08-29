@@ -26,6 +26,15 @@ from waku.config import Settings
 
 
 @dataclass(frozen=True)
+class ProviderEndpoint:
+    """One official regional endpoint and its matching model catalog."""
+
+    label: str
+    base_url: str
+    catalog_url: str | None = None
+
+
+@dataclass(frozen=True)
 class Provider:
     kind: str        # 'anthropic' or 'openai' — the wire format
     key_env: str     # which env var holds the key
@@ -44,11 +53,29 @@ class Provider:
     # flagship you'd showcase is opus-4.8. Blank falls back to model/small_model.
     flagship: str = ""
     fast: str = ""
+    # Providers with separately-issued regional keys keep their endpoint choice
+    # in a provider-specific env var.  WAKU_BASE_URL remains the global custom
+    # override for backwards compatibility, but must not leak across providers.
+    base_url_env: str = ""
+    endpoints: tuple[ProviderEndpoint, ...] = ()
 
     def default_pair(self) -> list[str]:
         """[flagship, fast], deduped — the switcher's default picks."""
         pair = [self.flagship or self.model, self.fast or self.small_model]
         return list(dict.fromkeys(m for m in pair if m))
+
+    def configured_base_url(self) -> str | None:
+        """Provider-scoped endpoint, falling back to the built-in default."""
+        configured = os.getenv(self.base_url_env, "").strip() if self.base_url_env else ""
+        return configured or self.base_url
+
+    def catalog_for(self, base_url: str | None) -> str | None:
+        """Return the catalog paired with *base_url*'s region."""
+        normalized = (base_url or "").rstrip("/")
+        for endpoint in self.endpoints:
+            if endpoint.base_url.rstrip("/") == normalized:
+                return endpoint.catalog_url
+        return self.catalog_url
 
 
 PROVIDERS: dict[str, Provider] = {
@@ -58,12 +85,16 @@ PROVIDERS: dict[str, Provider] = {
                           flagship="claude-opus-4-8", fast="claude-sonnet-5"),
     # The gpt-5.6 REASONING models (luna/sol/terra) can't use function tools on
     # /v1/chat/completions (they need /v1/responses), so every Waku turn 400s on
-    # them. The non-reasoning "chat" line DOES call tools fine; gpt-5.3-chat-latest
-    # is the newest concrete one (preferred over the gpt-5-chat-latest alias so a
-    # benchmark is reproducible). gpt-4.1-mini is a cheap tool-capable gate.
-    # base_url is None (SDK default) so point the picker at OpenAI's catalog.
+    # them. That constraint still holds — what changed is where the escape hatch
+    # is: the whole `-chat-latest` line (5.3, 5.2, 5.1 and the bare gpt-5 alias)
+    # is now 404 deprecated, so "fall back to the previous -chat-latest" is not
+    # an option any more. gpt-5.5 is the newest plain model that returns a
+    # tool_call on /v1/chat/completions; gpt-4.1-mini is a cheap tool-capable
+    # gate. A `-latest` alias is deliberately NOT used — it silently changes
+    # under a pinned benchmark, and test_openai_default_is_tool_capable rejects
+    # one. base_url is None (SDK default) so point the picker at the catalog.
     "openai":    Provider("openai", "OPENAI_API_KEY", None,
-                          "gpt-5.3-chat-latest", "gpt-4.1-mini",
+                          "gpt-5.5", "gpt-4.1-mini",
                           catalog_url="https://api.openai.com/v1/models"),
     # one key, every lab's models, and a $0 tier: the default models below are
     # free ids (":free" suffix). Rate-limited (~50 req/day without credits).
@@ -79,23 +110,130 @@ PROVIDERS: dict[str, Provider] = {
     "deepseek":  Provider("openai", "DEEPSEEK_API_KEY", "https://api.deepseek.com",
                           "deepseek-v4-pro", "deepseek-v4-pro"),
     "minimax":   Provider("anthropic", "MINIMAX_API_KEY", "https://api.minimaxi.com/anthropic",
-                          "MiniMax-M3", "MiniMax-M2"),
+                          "MiniMax-M3", "MiniMax-M2",
+                          catalog_url="https://api.minimaxi.com/anthropic/v1/models",
+                          base_url_env="MINIMAX_BASE_URL",
+                          endpoints=(
+                              ProviderEndpoint("China", "https://api.minimaxi.com/anthropic",
+                                               "https://api.minimaxi.com/anthropic/v1/models"),
+                              ProviderEndpoint("Global", "https://api.minimax.io/anthropic",
+                                               "https://api.minimax.io/anthropic/v1/models"),
+                          )),
     # K3 is the flagship default; the gate/summarizer stays on cheap K2.6
     # (the live catalog has no plain "kimi-k2.7" — only -code variants; we
     # checked). Override with WAKU_SMALL_MODEL=kimi-k3 if your key is K3-only.
     "kimi":      Provider("anthropic", "MOONSHOT_API_KEY", "https://api.moonshot.ai/anthropic",
                           "kimi-k3", "kimi-k2.6",
                           catalog_url="https://api.moonshot.ai/v1/models",
-                          flagship="kimi-k3", fast="kimi-k2.7-code-highspeed"),
+                          flagship="kimi-k3", fast="kimi-k2.7-code-highspeed",
+                          base_url_env="MOONSHOT_BASE_URL",
+                          endpoints=(
+                              ProviderEndpoint("Global", "https://api.moonshot.ai/anthropic",
+                                               "https://api.moonshot.ai/v1/models"),
+                              ProviderEndpoint("China", "https://api.moonshot.cn/anthropic",
+                                               "https://api.moonshot.cn/v1/models"),
+                          )),
     "glm":       Provider("anthropic", "ZHIPU_API_KEY", "https://api.z.ai/api/anthropic",
-                          "glm-5.2", "glm-5-turbo"),
+                          "glm-5.2", "glm-5-turbo",
+                          base_url_env="ZHIPU_BASE_URL",
+                          endpoints=(
+                              ProviderEndpoint("Global", "https://api.z.ai/api/anthropic"),
+                              ProviderEndpoint("China", "https://open.bigmodel.cn/api/anthropic"),
+                          )),
     # xAI Grok on its OpenAI-compatible endpoint. The model ids below are
     # starting points — add XAI_API_KEY and the picker lists the live catalog
     # (the authoritative source); pin whatever the current flagship/fast are.
     "xai":       Provider("openai", "XAI_API_KEY", "https://api.x.ai/v1",
                           "grok-4", "grok-4-fast",
                           catalog_url="https://api.x.ai/v1/models"),
+    # OpenCode — OpenAI-compatible platform. Two endpoints: "zen" and "go"
+    # share the same platform key. zen offers free models (default:
+    # deepseek-v4-flash-free); go uses the standard deepseek-v4-flash.
+    # The live catalog (GET /models) lists whatever the endpoint serves,
+    # and the picker is the authoritative menu.
+    "opencode_zen": Provider("openai", "OPENCODE_ZEN_API_KEY",
+                               "https://opencode.ai/zen/v1",
+                               "deepseek-v4-flash-free", "deepseek-v4-flash-free"),
+    "opencode_go":  Provider("openai", "OPENCODE_GO_API_KEY",
+                               "https://opencode.ai/zen/go/v1",
+                               "deepseek-v4-flash", "deepseek-v4-flash"),
 }
+
+
+# Where each provider's key actually comes from. Pointing at ".env.example"
+# was useless advice for anyone who installed from PyPI — that file only exists
+# in a git checkout, so the one instruction the message gave could not be
+# followed by the people most likely to need it.
+KEY_URLS = {
+    "anthropic": "https://console.anthropic.com/settings/keys",
+    "openai": "https://platform.openai.com/api-keys",
+    "gemini": "https://aistudio.google.com/apikey",
+    "deepseek": "https://platform.deepseek.com/api_keys",
+    "openrouter": "https://openrouter.ai/keys",
+    "kimi": "https://platform.moonshot.ai/console/api-keys",
+    "glm": "https://z.ai/manage-apikey/apikey-list",
+    "minimax": "https://platform.minimaxi.com/user-center/basic-information",
+    "xai": "https://console.x.ai",
+    "opencode_zen": "https://opencode.ai/zen",
+    "opencode_go": "https://opencode.ai/zen",
+}
+
+
+def _no_key_message(name: str, key_env: str) -> str:
+    """Say what to set, where to get it, and WHICH file we read.
+
+    The old message named one env var and pointed at a file that does not exist
+    off a git checkout. Three things were missing and each one cost a search:
+    the URL to get a key, the absolute path of the .env actually in play, and
+    the fact that Waku speaks to eleven providers, not one.
+    """
+    from waku.config import DOTENV_PATH
+
+    # Name the variable in BOTH branches. "add the line there" without saying
+    # which line is the same dead end as pointing at .env.example was.
+    where = (f"Add it to {DOTENV_PATH}:\n"
+             f"    {key_env}=your-key-here"
+             if DOTENV_PATH else
+             f"No .env found from {os.getcwd()} upward — create one here:\n"
+             f"    echo '{key_env}=your-key-here' >> .env")
+    url = KEY_URLS.get(name)
+    return (
+        f"No API key for provider '{name}'.\n\n"
+        f"  1. Get a key: {url}\n" if url else f"No API key for provider '{name}'.\n\n"
+    ) + (
+        f"  2. {where}\n\n"
+        f"Other providers: {', '.join(sorted(PROVIDERS))}\n"
+        f"Switch with WAKU_PROVIDER=<name> and that provider's key."
+    )
+
+
+def _families(provider: Provider) -> set[str]:
+    """The model FAMILIES this provider ships — "claude", "grok", "gemini"...
+
+    Taken from the provider's own four defaults rather than a hand-kept list, so
+    a new provider is covered the moment it is added. Aggregators whose ids are
+    vendor-namespaced ("anthropic/claude-3" on openrouter) are excluded by the
+    caller: for them the first segment names a VENDOR, not the host.
+    """
+    names = (provider.model, provider.small_model, provider.flagship, provider.fast)
+    return {n.split("-")[0].lower() for n in names if n and "/" not in n}
+
+
+def _belongs_elsewhere(model: str, provider_name: str) -> bool:
+    """Is this model name positively another provider's?
+
+    Deliberately asks the POSITIVE question. "Does it not look like ours?" would
+    drop anything unfamiliar — a legitimately odd id, a preview name, a model
+    added since — and silently downgrade a deliberate choice. This only fires
+    when the family is one some OTHER provider actually owns, which is the case
+    that produces a 400 rather than a surprise.
+    """
+    family = model.split("-")[0].lower()
+    if "/" in model or not family:
+        return False
+    owner = {f: name for name, p in PROVIDERS.items() if "/" not in (p.model or "x")
+             for f in _families(p)}.get(family)
+    return bool(owner) and owner != provider_name
 
 
 def get_client(settings: Settings):
@@ -110,10 +248,7 @@ def get_client(settings: Settings):
     # auth header (headers are latin-1; a stray non-ASCII char errors cryptically).
     api_key = (settings.api_key or os.getenv(provider.key_env, "")).strip()
     if not api_key:
-        raise SystemExit(
-            f"No API key for provider '{settings.provider}'. "
-            f"Set {provider.key_env} in .env (see .env.example)."
-        )
+        raise SystemExit(_no_key_message(settings.provider, provider.key_env))
     try:
         api_key.encode("latin-1")
     except UnicodeEncodeError:
@@ -122,9 +257,28 @@ def get_client(settings: Settings):
             f"or arrow from a bad paste). Re-paste the key with no spaces or line breaks."
         )
 
+    # A model name belongs to the provider it was configured FOR. WAKU_MODEL and
+    # WAKU_SMALL_MODEL are global, so code that switches provider — the arena
+    # races ten of them — carried anthropic's gate model to xAI, which answers
+    # `400 Model not found: claude-haiku-4-5-20251001`. The retrieval gate then
+    # FAILS OPEN by design, so it retrieved on every single turn for every
+    # non-anthropic model instead of deciding, and reported that as a normal
+    # "retrieve". A silent permanent failure wearing the costume of a healthy
+    # decision.
+    #
+    # So: a value INHERITED from the env for a different provider is dropped
+    # (the provider's own default fills in below); a value the caller passed
+    # explicitly is kept, because that is a choice, not a leak. The two are
+    # distinguishable exactly when the setting still equals the env string.
+    for attr in ("model", "small_model"):
+        inherited = os.getenv(f"WAKU_{attr.upper()}", "").strip()
+        if inherited and getattr(settings, attr) == inherited \
+                and _belongs_elsewhere(inherited, settings.provider):
+            setattr(settings, attr, "")
+
     settings.model = settings.model or provider.model
     settings.small_model = settings.small_model or provider.small_model
-    base_url = settings.base_url or provider.base_url
+    base_url = settings.base_url or provider.configured_base_url()
 
     # a hung network call must never freeze a turn silently
     timeout = float(os.getenv("WAKU_LLM_TIMEOUT", "120"))

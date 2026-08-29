@@ -13,10 +13,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from waku.integrations import INTEGRATIONS
+
 STATIC = Path(__file__).resolve().parents[2] / "waku" / "ops" / "static"
 INDEX = (STATIC / "index.html").read_text()
 JS_FILES = sorted((STATIC / "js").glob("*.js"))
 JS_SRC = "\n".join(f.read_text() for f in JS_FILES)
+CONNECTION_LOGOS = {f"{integration.key}.svg" for integration in INTEGRATIONS}
 
 # JS keywords / builtins / DOM globals an inline handler may call without a js/
 # definition. Kept small on purpose — anything else must be a real app function.
@@ -38,10 +41,46 @@ def test_referenced_assets_exist():
         assert target.is_file(), f"index.html references missing asset: {ref}"
 
 
+def test_connection_card_logos_are_local_and_complete():
+    """Dynamic card image paths are generated in JS, so index.html cannot pin
+    them. Keep every registry-backed logo present and valid."""
+    logo_dir = STATIC / "logos" / "connections"
+    assert {path.name for path in logo_dir.glob("*.svg")} == CONNECTION_LOGOS
+    for name in CONNECTION_LOGOS:
+        svg = (logo_dir / name).read_text()
+        assert svg.startswith("<svg "), f"{name} is not an SVG"
+        assert "<title>" in svg, f"{name} needs an accessible title"
+
+
+def test_connection_display_groups_stay_in_product_order():
+    """The order is the reading order of the page, so it is pinned deliberately
+    rather than left to whatever the object literal happens to say.
+
+    "Memory", not "Storage": the registry group is called "Memory & Storage" and
+    the display map used to keep the wrong half. Notion is the episodic store,
+    Supabase the semantic one, and every hosted memory service that joins them
+    is semantic too — none of it is generic storage."""
+    assert 'const CONNECTION_GROUPS = ["Channels", "Productivity", "Memory", "Tools"]' in JS_SRC
+
+
+def test_every_registry_group_has_a_display_name():
+    """connectionDisplayGroup falls back to "Tools" for anything unmapped, so a
+    new registry group would not error — it would quietly file itself under the
+    wrong heading and nobody would notice. Pin the mapping instead of trusting
+    the fallback."""
+    from waku import integrations
+
+    mapped = set(re.findall(r'^\s*"([^"]+)":\s*"[^"]+",\s*$', JS_SRC, re.MULTILINE))
+    # AI Providers has its own page (Models), so it is deliberately not here.
+    groups = {i.group for i in integrations.registry()} - {"AI Providers"}
+    missing = groups - mapped
+    assert not missing, f"registry groups with no display name, they'd land in Tools: {missing}"
+
+
 def _defined_names() -> set[str]:
     names = set()
-    names |= set(re.findall(r'^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)', JS_SRC, re.M))
-    names |= set(re.findall(r'^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=', JS_SRC, re.M))
+    names |= set(re.findall(r'^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)', JS_SRC, re.MULTILINE))
+    names |= set(re.findall(r'^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=', JS_SRC, re.MULTILINE))
     return names
 
 

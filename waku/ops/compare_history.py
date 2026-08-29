@@ -19,7 +19,7 @@ file; the dashboard only calls append_run / load_runs / aggregate.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 MAX_RUNS = 50      # keep the log small; older races roll off the front
@@ -59,7 +59,7 @@ def append_run(home: Path, message: str, results: list[dict], ts: str | None = N
     `results` is the list of per-model result dicts the arena already built.
     Rewrites the whole (capped) file — fine because it's tiny by construction."""
     record = {
-        "ts": ts or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "ts": ts or datetime.now(UTC).isoformat(timespec="seconds"),
         "message": message,
         "results": [_slim(r) for r in results],
     }
@@ -73,7 +73,7 @@ def save_runs(home: Path, runs: list[dict]) -> None:
     which mutates an existing race's stored results in place."""
     path = _path(home)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(json.dumps(r) for r in runs[-MAX_RUNS:]) + "\n")
+    path.write_text("\n".join(json.dumps(r) for r in runs[-MAX_RUNS:]) + "\n", encoding="utf-8")
 
 
 def clear(home: Path) -> None:
@@ -88,7 +88,7 @@ def load_runs(home: Path, limit: int | None = None) -> list[dict]:
     if not path.exists():
         return []
     runs = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue

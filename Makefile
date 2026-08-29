@@ -8,7 +8,8 @@
 # `source .venv/bin/activate` — both work, this is just fewer steps.
 PY := $(shell [ -x .venv/bin/python ] && echo .venv/bin/python || echo python)
 
-.PHONY: run voice telegram brief dashboard trace eval eval-judge gate lint
+.PHONY: run voice telegram discord brief dashboard trace eval eval-judge gate lint
+.PHONY: run voice telegram whatsapp brief dashboard trace eval eval-judge gate lint
 
 run:            ## chat with Waku in the terminal
 	$(PY) -m waku
@@ -19,10 +20,21 @@ voice:          ## talk to it — push-to-talk, or always-on with WAKU_WAKE_WORD
 telegram:       ## phone → laptop (needs TELEGRAM_BOT_TOKEN in .env)
 	$(PY) -m waku telegram
 
-brief:          ## morning briefing from calendar + mail + memory
+discord:        ## Discord → laptop (needs DISCORD_BOT_TOKEN in .env)
+	$(PY) -m waku discord
+whatsapp:       ## WhatsApp → laptop (needs WHATSAPP_TOKEN in .env, public URL)
+	$(PY) -m waku whatsapp
+
+brief:          ## morning briefing from calendar + mail + memory (as a LOOP)
 	$(PY) -m waku brief
 
-dashboard:      ## everything on one page — http://localhost:7777
+gather:         ## same job as a GRAPH: 4 sources in parallel, then one digest
+	$(PY) -m waku gather
+
+# The server holds dashboard.py in memory: static JS/CSS reload on refresh, but
+# Python routes do NOT. After pulling a change that touches dashboard.py (or any
+# imported module), stop this and re-run it, or the UI shows stale backend data.
+dashboard:      ## everything on one page — http://localhost:7777 (restart after a backend pull)
 	$(PY) -m waku.ops.dashboard
 
 trace:          ## deep trace waterfalls (Phoenix) at http://localhost:6006
@@ -44,4 +56,4 @@ shootout-coding: ## coding round via pi, scored by tests: make shootout-coding R
 	$(PY) scripts/shootout.py $(RUNS) --coding
 
 lint:
-	$(PY) -m ruff check waku evals
+	$(PY) -m ruff check waku evals scripts

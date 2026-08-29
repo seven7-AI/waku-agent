@@ -22,8 +22,9 @@ runs the bootstrap and must load last**.
 | `models.js`  | `applyModel` (the one `/api/settings` writer), model picker / catalog / pins |
 | `render.js`  | formatters + chat card renderers (`stagesRow`/`teleFooter`) + chatlog + streaming + `sendChat` |
 | `diagram.js` | `archSVG` (the architecture chart) **and** its live animation (`STAGE`/`hot`/`pollEvents`) |
+| `graph.js`   | graph workflows: data-driven topology chart (`graphSVG` from `d.graph.workflows`), the Overview panel (`graphPanel`), and `animateGraphStage` for `graph_*`/`route` events |
 | `views.js`   | subtab/db helpers, SQL console, Memory/Tools sub-views, the `VIEWS` router object |
-| `compare.js` | the Model arena (`Compare` tab) — race one message through several models at once |
+| `compare.js` | the Model arena (`Arena` tab; internals keep the `compare` name) — race one message through several models at once |
 | `dock.js`    | chat sessions/history (`loadThreadInto`), model chip, stats toggle |
 | `main.js`    | `render`/`refresh` loop, resizers, voice, and the bootstrap (**loads last**) |
 
@@ -41,6 +42,11 @@ Data flows one way: `refresh()` (main.js) fetches `/api/data` into the global
   `data-node="…"`/`data-edge="…"` ids that the `STAGE` map (same file) drives the
   live animation from. If you ever change a node/edge id, change it in both
   places. (Both are in `diagram.js` precisely so they stay together.)
+- **The graph chart is data-driven — never hand-edit a topology.** `graphSVG`
+  renders `Graph.describe()` served in `/api/data`, so the picture is provably
+  what the engine runs (`test_graph_topology_payload.py` pins it). To change the
+  chart's shape, change the workflow in `waku/graph/workflows/`. Graph ids are
+  namespaced `g-<node>` / `g-<src>-<dst>` so they can never collide with archSVG's.
 - **No build step / no framework / no new dependencies.** If you reach for one,
   stop — the whole point is that this reads and runs with nothing installed.
 - **No emojis in UI** (project rule). Known pre-existing exception: the `★`/`☆`
@@ -53,3 +59,10 @@ Frontend logic is not unit-tested; verify in the browser preview:
 sidebar tabs and the chat dock → check the console shows **zero errors**. The
 Python side (`dashboard.py` endpoints, `_thread_history`, pins, session resume)
 *is* covered by `evals/deterministic/`.
+
+**A running server does not pick up Python changes.** Static files here (`.js`,
+`.css`, `index.html`) are read from disk on every request, so a hard-reload shows
+them. But `dashboard.py` and everything it imports are held in memory — after
+pulling or editing backend code, **restart `make dashboard`**, or the page renders
+new markup against stale data (e.g. a new Settings panel that shows nothing because
+the old route isn't sending its fields).

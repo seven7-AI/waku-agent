@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import re
 
-from waku.memory import REPO_SKILLS
+from waku.memory import bundled_skill_dirs
 from waku.memory.procedural.loader import _parse_text
 from waku.tools.registry import Tool
 
@@ -35,7 +35,15 @@ def make_manage_memory_tool(memory) -> Tool:
                 if query:
                     rows = [r for r in rows if query.lower() in r["summary"].lower()]
                 return "\n".join(f"#{r['id']} ({r['happened_at']}) {r['summary']}" for r in rows[:8]) or "no episodes"
-            rows = facts.search_with_ids(query, 8) if hasattr(facts, "search_with_ids") else []
+            # No hasattr guard. It used to read
+            #   facts.search_with_ids(...) if hasattr(...) else []
+            # which looked defensive and was the opposite: on a backend missing
+            # the method, the agent got [] and told the user "no matching
+            # facts" while the facts sat in the database. Every FactStore now
+            # has to declare this method (semantic/base.py) and prove it
+            # (test_fact_store_conformance.py), so a real absence should be a
+            # loud AttributeError, not a confident wrong answer.
+            rows = facts.search_with_ids(query, 8)
             return "\n".join(f"#{r['id']} [{r['subject']}] {r['content']}" for r in rows) or "no matching facts"
         if action == "update":
             if kind != "fact":
@@ -88,7 +96,7 @@ def make_update_soul_tool(settings) -> Tool:
         if "## Learned rules" not in text:
             text = text.rstrip() + "\n\n## Learned rules\n"
         text = text.rstrip() + f"\n- {rule}\n"
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         return f"Noted, I'll remember to: {rule}"
 
     return Tool(
@@ -114,7 +122,7 @@ def make_create_skill_tool(settings, memory) -> Tool:
             return "Skill name must be a short slug like 'weekly-review' (lowercase, hyphens)."
         dest = settings.home / "skills" / name / "SKILL.md"
         # never silently overwrite an existing skill (built-in or user)
-        if dest.exists() or (REPO_SKILLS / name / "SKILL.md").exists():
+        if dest.exists() or any((d / name / "SKILL.md").exists() for d in bundled_skill_dirs()):
             return f"A skill named '{name}' already exists — pick another name."
         text = f"---\nname: {name}\ndescription: {description.strip()}\n---\n\n{body.strip()}\n"
         if _parse_text(text, dest) is None:
