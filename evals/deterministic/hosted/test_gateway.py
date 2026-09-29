@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import hashlib
 import json
 import logging
 from dataclasses import replace
@@ -347,8 +346,21 @@ def test_clear_site_data_rides_on_login_and_logout_and_on_no_cookie_response(har
         return login, signed_in, entered, out
 
     login, signed_in, entered, out = asyncio.run(run())
-    assert login[1]["clear-site-data"] == '"cache", "storage"'
-    assert out[1]["clear-site-data"] == '"cache", "storage"'
+    # "storage" and NOT "cache", since 2026-09-28. The spec (line 509) writes
+    # both. "storage" is the half that protects a person -- localStorage,
+    # sessionStorage and IndexedDB, so nothing this page or Supabase wrote
+    # survives for the next person at this browser. "cache" cleared the HTTP
+    # cache, which on this origin holds four public stylesheets, three fonts,
+    # the Waku mark and the sign-in script, and cost 113591 bytes on every
+    # single sign-in for it. The reason app.py gives is the one that matters;
+    # this is the wire.
+    assert login[1]["clear-site-data"] == '"storage"'
+    assert out[1]["clear-site-data"] == '"storage"'
+    # AND IT STILL CARRIES NO "cookies", which is the spec's own note and the
+    # part that was never about performance: the session cookie is cleared by
+    # the logout that sends this header, not by the browser acting on it.
+    for response in (login, out):
+        assert "cookies" not in response[1]["clear-site-data"]
     for response in (signed_in, entered):
         assert "clear-site-data" not in response[1]
     assert cookie_value(signed_in[1], "__Host-waku_session") != ""
@@ -631,7 +643,7 @@ def test_a_tenant_host_has_its_own_logout(harness):
 
     out, after = asyncio.run(run())
     assert out[0] == 200
-    assert out[1]["clear-site-data"] == '"cache", "storage"'
+    assert out[1]["clear-site-data"] == '"storage"'
     assert {"secure", "httponly", "samesite=lax", "path=/", "max-age=0"} <= (
         cookie_attributes(out[1], "__Host-waku_tenant"))
     assert after[0] == 401
@@ -711,44 +723,78 @@ def test_the_login_page_carries_this_deployments_supabase_values(harness):
     assert "frame-ancestors 'none'" in headers["content-security-policy"]
 
 
-def test_auth_static_serves_three_named_files_and_nothing_else(harness):
-    """An allowlist of three names, not a directory walk.
+def test_auth_static_serves_named_files_and_nothing_else(harness):
+    """An allowlist, not a directory walk.
 
     hosted/ is copied whole into the services image, so a walk would serve
-    whatever anybody drops beside login.css. The vendored Supabase client is
-    checked by digest here as well: the gateway hands that file to every
-    visitor, and a swapped copy is the shortest path to every session on the
-    apex.
+    whatever anybody drops beside login.css. The list grew on 2026-09-27 when
+    the page took on the design system, and shrank by one: the 218 KB
+    vendored Supabase client is gone, because the page makes its one call
+    with fetch (hosted/gateway/static/login.js).
+
+    WHAT IS CHECKED HERE and what is not. This test asks whether the names in
+    the allowlist are served, and whether names outside it are refused.
+    Whether the PAGE's own references are all in the allowlist is the
+    opposite question and is asked by
+    evals/deterministic/hosted/test_login_page.py, which derives its list
+    from the page instead of from here.
     """
+    served = ("login.css", "login.js", "waku-mark.svg",
+              "design/tokens.css", "design/fonts.css",
+              "fonts/InstrumentSans-var.woff2")
+    # Two shapes, two answers. A name that simply is not in the allowlist is
+    # a 404. A name carrying `..` never reaches the allowlist at all: the
+    # gateway's path guard refuses it with a 400 before routing, which is why
+    # no request string is ever joined to a path in `_static`.
+    refused = ("supabase.js", "supabase-js-2.117.1.js", "login.css/",
+               "nothing.js", "design/")
+    traversal = ("../login.css", "design/../login.css")
+
     async def run():
         await harness.start()
         seen = {}
-        for name in ("login.css", "login.js", "supabase.js", "supabase-js-2.117.1.js",
-                     "login.css/", "nothing.js"):
+        for name in served + refused + traversal:
             seen[name] = await harness.send("GET", f"/auth/static/{name}",
                                             host="agent.waku.one")
         await harness.stop()
         return seen
 
     seen = asyncio.run(run())
-    assert [seen[name][0] for name in ("login.css", "login.js", "supabase.js")] == [200] * 3
+    assert [seen[name][0] for name in served] == [200] * len(served), {
+        name: seen[name][0] for name in served}
     assert seen["login.css"][1]["content-type"] == "text/css; charset=utf-8"
     assert seen["login.js"][1]["content-type"] == "text/javascript; charset=utf-8"
-    # The version is a name the page never spells, and the raw filename is not
-    # a second way to ask for the same bytes.
-    assert seen["supabase-js-2.117.1.js"][0] == 404
-    assert seen["login.css/"][0] == 404
-    assert seen["nothing.js"][0] == 404
-    vendored = (ROOT / "hosted/gateway/static/supabase-js-2.117.1.js").read_bytes()
-    assert seen["supabase.js"][2] == vendored
-    assert hashlib.sha256(vendored).hexdigest() == (
-        "dff1e545f4f35bd42895cd6f46431e56137dd13031e46a9759c446447c11a567")
+    assert seen["design/tokens.css"][1]["content-type"] == "text/css; charset=utf-8"
+    assert seen["waku-mark.svg"][1]["content-type"] == "image/svg+xml; charset=utf-8"
+    # A font is bytes, and says so: no charset.
+    assert seen["fonts/InstrumentSans-var.woff2"][1]["content-type"] == "font/woff2"
+    # Nothing outside the list, including the two shapes that would be a
+    # traversal if any request string were ever joined to a path.
+    assert [seen[name][0] for name in refused] == [404] * len(refused), {
+        name: seen[name][0] for name in refused}
+    assert [seen[name][0] for name in traversal] == [400] * len(traversal), {
+        name: seen[name][0] for name in traversal}
+    # The bytes are the file's, not a re-encoding of it.
+    assert seen["fonts/InstrumentSans-var.woff2"][2] == (
+        ROOT / "hosted/gateway/static/fonts/InstrumentSans-var.woff2").read_bytes()
 
 
-def test_the_login_page_names_no_waku_static_file():
-    """The gateway's pages "use no Waku brand file" (spec). The import
-    boundary test reads *.py only, so an HTML src or href pointing into
-    waku/ops/static/ is invisible to it."""
+def test_the_login_page_reaches_into_no_other_tree():
+    """The gateway's pages load from `/auth/static/` and from nowhere else.
+
+    THE SPEC SAID MORE THAN THIS AND NO LONGER DOES. Spec 001 line 514 reads
+    "the pages use no Waku brand file", and until 2026-09-27 that was why the
+    sign-in page was unstyled system-ui. It now uses the Waku design system,
+    at the product owner's instruction, from COPIES that ride in this tree
+    (hosted/gateway/static/design/, listed in LICENSE-BRAND). The deviation
+    is written up in the spec's own amendments section.
+
+    What survives unchanged is the reason this test exists: the import
+    boundary test reads *.py only, so an href into waku/ops/static/ would be
+    invisible to it -- and such an href cannot work anyway, because the
+    services image's build context refuses waku/. This is that refusal,
+    checked at the layer that would otherwise find out in production.
+    """
     for name in ("hosted/templates/login.html", "hosted/gateway/static/login.css",
                  "hosted/gateway/static/login.js"):
         text = (ROOT / name).read_text(encoding="utf-8")
@@ -2176,3 +2222,60 @@ def test_a_second_request_during_the_evict_stop_window_waits_for_the_container(
     # And the eviction really did happen, so the window really was open: the
     # winner was inside `stop` when the waiter arrived.
     assert [r["op"] for r in during][:2] == ["stop", "start"]
+
+
+def test_a_static_file_revalidates_with_an_etag_and_answers_304(harness):
+    """THE BEHAVIOUR, not the header constants.
+
+    Until 2026-09-28 every asset on the apex carried `Cache-Control: no-store`
+    and `GET /login` sent `Clear-Site-Data: "cache"`, so a browser re-fetched
+    all 113591 bytes of the sign-in page on every visit -- measured against
+    the live deployment: ten requests, zero cache hits, 88 KB of it
+    incompressible woff2.
+
+    A conditional request now costs one round trip and no body.
+    """
+    async def run():
+        await harness.start()
+        first = await harness.send("GET", "/auth/static/design/tokens.css",
+                                   host="agent.waku.one")
+        tag = first[1]["etag"]
+        again = await harness.send("GET", "/auth/static/design/tokens.css",
+                                   host="agent.waku.one",
+                                   headers={"If-None-Match": tag})
+        stale = await harness.send("GET", "/auth/static/design/tokens.css",
+                                   host="agent.waku.one",
+                                   headers={"If-None-Match": '"not-the-tag"'})
+        await harness.stop()
+        return first, again, stale
+
+    first, again, stale = asyncio.run(run())
+    assert first[0] == 200
+    assert first[1]["cache-control"] == "no-cache", (
+        "the asset says no-store again; nothing will ever be cached")
+    assert first[1]["etag"]
+    # The whole point: same tag, no body.
+    assert again[0] == 304
+    assert again[2] == b""
+    assert again[1]["etag"] == first[1]["etag"]
+    # A tag that does not match gets the file, or a deploy would never land.
+    assert stale[0] == 200
+    assert stale[2] == first[2]
+
+
+def test_a_tenants_own_responses_are_still_never_stored(wired):
+    """The line the caching change must NOT cross. The spec's acceptance 14:
+    "every container response carries Cache-Control: no-store". A tenant's
+    dashboard data is theirs and belongs in no cache; only the apex's public
+    files were ever the argument."""
+    async def run():
+        await wired.start()
+        host, cookie = await signed_in_on_the_tenant_host(wired)
+        answer = await wired.send("GET", "/api/data", host=host, cookie=cookie)
+        await wired.stop()
+        return answer
+
+    status, headers, _body = asyncio.run(run())
+    assert status == 200
+    assert headers["cache-control"] == "no-store"
+    assert "etag" not in headers

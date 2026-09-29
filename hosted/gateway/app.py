@@ -27,6 +27,7 @@ worse answer than 400 for the same reason "/api/ch%61t/stream" is.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import time
 from collections.abc import Awaitable, Callable
@@ -55,16 +56,100 @@ STATIC = Path(__file__).resolve().parent / "static"
 # STATIC sits inside hosted/, which the services image copies whole, so a
 # directory walk would serve whatever anybody ever drops in there.
 #
-# supabase-js-2.117.1.js is the un-minified UMD build of @supabase/supabase-js
-# 2.117.1, taken from cdn.jsdelivr.net on 2026-09-24. 217945 bytes, sha256
-# dff1e545f4f35bd42895cd6f46431e56137dd13031e46a9759c446447c11a567.
+# A key may contain a slash, and the VALUE is what reaches the filesystem, so
+# a nested file costs an entry here and nothing else. No request string is
+# ever joined to STATIC, which is what keeps `..` a 404 rather than a
+# traversal that has to be defended against.
+#
+# design/ and fonts/ are copies of the Waku design system, byte-identical to
+# waku/ops/static/. They are copies rather than a shared directory because
+# the services image's build context refuses waku/ outright
+# (services.Dockerfile.dockerignore) -- that refusal is the hosted/waku
+# boundary, and it is worth more than the duplication.
+# evals/deterministic/hosted/test_login_page.py fails if the two ever differ.
+#
+# supabase-js-2.117.1.js is GONE as of 2026-09-27: 217945 bytes, thrown away
+# by this page's own Clear-Site-Data and refetched on every sign-in, to make
+# one call login.js now makes with fetch. See that file.
 STATIC_FILES: dict[str, tuple[str, str]] = {
-    "supabase.js": ("supabase-js-2.117.1.js", "text/javascript"),
     "login.css": ("login.css", "text/css"),
     "login.js": ("login.js", "text/javascript"),
+    "waku-mark.svg": ("waku-mark.svg", "image/svg+xml"),
+    "design/tokens.css": ("design/tokens.css", "text/css"),
+    "design/type.css": ("design/type.css", "text/css"),
+    "design/fonts.css": ("design/fonts.css", "text/css"),
+    "design/controls.css": ("design/controls.css", "text/css"),
+    "fonts/InstrumentSans-var.woff2": ("fonts/InstrumentSans-var.woff2", "font/woff2"),
+    "fonts/JetBrainsMono-var.woff2": ("fonts/JetBrainsMono-var.woff2", "font/woff2"),
+    "fonts/PlayfairDisplaySC-400.woff2": ("fonts/PlayfairDisplaySC-400.woff2", "font/woff2"),
 }
 
-CLEAR_SITE_DATA = '"cache", "storage"'
+# A woff2 is bytes. Sending `font/woff2; charset=utf-8` says it is text in a
+# character set, which is false, and aiohttp will not let charset be set on
+# some binary types at all.
+TEXT_STATIC_TYPES = frozenset({"text/css", "text/javascript", "image/svg+xml"})
+
+# "storage" and NOT "cache", since 2026-09-28.
+#
+# The spec (line 509) writes both. "storage" is the half that protects a
+# person: it clears localStorage, sessionStorage and IndexedDB, so nothing
+# Supabase or this page wrote survives for the next person at this browser.
+# "cache" clears the HTTP cache for this origin -- which on the apex holds
+# four stylesheets, three fonts, the Waku mark and a 2.5 KB script, all of
+# them public, identical for every visitor, and none of them a credential.
+#
+# It cost 113591 bytes on EVERY sign-in, measured against the live
+# deployment: ten requests, zero cache hits, 88 KB of it incompressible
+# woff2, on every visit forever. That is the whole of what "cache" bought
+# and the whole of what it cost.
+#
+# Cookies are untouched either way, and deliberately: the spec notes that
+# this header "carries no cookies", because the session cookie is cleared by
+# the logout that sends this, not by the browser.
+# --- the public static files, and the ONE place they are allowed to cache ---
+#
+# WHY THESE AND NOTHING ELSE. answers.harden sends `Cache-Control: no-store`
+# on every response, which is right for what the spec's acceptance 14 names:
+# "every CONTAINER response carries Cache-Control: no-store". A tenant's
+# dashboard data is theirs and must never sit in a shared cache.
+#
+# /auth/static/ is the opposite kind of thing. Every byte is public, identical
+# for every visitor, and carries no credential: four stylesheets, three fonts,
+# the Waku mark and the sign-in script. `no-store` on those bought nothing and
+# cost 113591 bytes per sign-in.
+#
+# REVALIDATION AND NOT A LIFETIME, on purpose. `no-cache` means "you may keep
+# it, ask me before using it". The browser sends the tag it holds and an
+# unchanged file answers 304 with no body -- so a repeat visit costs round
+# trips instead of bytes, and a deploy is picked up IMMEDIATELY. A max-age
+# would be faster and would serve the previous release's stylesheet to
+# somebody signing in after a deploy, which on the page that holds a
+# credential is not a trade worth a few hundred milliseconds.
+STATIC_CACHE_CONTROL = "no-cache"
+
+# The file's bytes, so the tag changes exactly when the file does. Computed
+# per request and not at import: the files are small, and a cache keyed on a
+# process's startup would serve a stale tag for the life of a container that
+# outlived a `docker cp`. Weak would be wrong -- these are byte-identical
+# copies checked by an eval, and a strong tag is what they are.
+def _etag(filename: str, body: bytes) -> str:
+    return '"' + hashlib.sha256(body).hexdigest()[:32] + '"'
+
+
+def _cacheable(response: web.Response, tag: str) -> web.Response:
+    """harden(), then the two headers that let this one file be kept.
+
+    The order matters and is the whole of this function: harden sets
+    Cache-Control: no-store, so a caller that hardened afterwards would put it
+    back and silently undo the caching. One place does both, in one order.
+    """
+    answers.harden(response)
+    response.headers["Cache-Control"] = STATIC_CACHE_CONTROL
+    response.headers["ETag"] = tag
+    return response
+
+
+CLEAR_SITE_DATA = '"storage"'
 SIGN_IN_REFUSED = "That sign-in did not work. Ask for a new link."
 
 # aiohttp's own default is 1 MiB. Set explicitly, and equal to the proxy's
@@ -76,8 +161,14 @@ MAX_BODY_BYTES = 4 * 1024 * 1024
 async def _harden_on_prepare(_request: web.Request,
                              response: web.StreamResponse) -> None:
     """The five security headers on every response this process writes,
-    including the ones aiohttp writes on its own. harden() is idempotent, so
-    a response that already went through it is unchanged."""
+    including the ones aiohttp writes on its own.
+
+    THIS RUNS AFTER THE HANDLER, which is the whole reason harden() defaults
+    Cache-Control rather than imposing it. A response that set its own -- the
+    public static files, which may be kept and revalidated -- keeps it; every
+    other response gets no-store here even if its handler never thought about
+    it. Before that, this line silently undid the caching and the only symptom
+    was a slow sign-in page."""
     answers.harden(response)
 
 
@@ -230,7 +321,7 @@ class Gateway:
         if request.method == "GET" and path == "/login":
             return self._login_page()
         if request.method == "GET" and path.startswith("/auth/static/"):
-            return self._static(path[len("/auth/static/"):])
+            return self._static(request, path[len("/auth/static/"):])
         if request.method == "POST" and path == "/auth/session":
             return await self._sign_in(request)
         if request.method == "POST" and path == "/auth/logout":
@@ -262,23 +353,35 @@ class Gateway:
         policy_header = (
             "default-src 'none'; script-src 'self'; style-src 'self'; "
             f"connect-src 'self' {self._config.supabase_url}; img-src 'self'; "
+            # font-src, because the page now serves the design system's own
+            # faces from this origin. Without it they are refused and the
+            # page silently falls back to the system stack.
+            "font-src 'self'; "
             "form-action 'none'; base-uri 'none'; frame-ancestors 'none'")
         response = web.Response(text=body, content_type="text/html", charset="utf-8")
         response.headers["Content-Security-Policy"] = policy_header
         response.headers["Clear-Site-Data"] = CLEAR_SITE_DATA
         return answers.harden(response)
 
-    def _static(self, name: str) -> web.Response:
+    def _static(self, request: web.Request, name: str) -> web.Response:
         found = STATIC_FILES.get(name)
         if found is None:
             return answers.json_error(404, answers.NOT_FOUND)
         filename, content_type = found
-        # charset explicitly: without it a classic script or stylesheet is
-        # decoded in the encoding the BROWSER picks, and the vendored client
-        # is 218 KB of UTF-8 nobody re-reads after a mojibake bug report.
-        return answers.harden(web.Response(
-            body=(STATIC / filename).read_bytes(), content_type=content_type,
-            charset="utf-8"))
+        # charset explicitly on TEXT: without it a classic script or
+        # stylesheet is decoded in the encoding the BROWSER picks, and this
+        # page's copy is the one a mojibake bug report would be about. A font
+        # is not text and does not get one.
+        charset = "utf-8" if content_type in TEXT_STATIC_TYPES else None
+        body = (STATIC / filename).read_bytes()
+        tag = _etag(filename, body)
+        # A conditional request costs one round trip and no body. The browser
+        # asks with the tag it holds; an unchanged file answers 304 and sends
+        # nothing.
+        if request.headers.get("If-None-Match") == tag:
+            return _cacheable(web.Response(status=304), tag)
+        return _cacheable(web.Response(
+            body=body, content_type=content_type, charset=charset), tag)
 
     async def _sign_in(self, request: web.Request) -> web.Response:
         try:
